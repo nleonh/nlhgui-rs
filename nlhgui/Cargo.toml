@@ -1,0 +1,19 @@
+[package]
+name = "nlhgui"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Reactive desktop GUI library based on skia"
+
+[lib]
+doctest = false
+
+[dependencies]
+gl = "0.14.0"
+glutin = "0.32.3"
+glutin-winit = "0.5.0"
+log = "0.4.34"
+raw-window-handle = "0.6.2"
+skia-safe = { version = "0.153.3", features = ["gl", "textlayout"] }
+tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread"] }
+winit = "0.30.13"

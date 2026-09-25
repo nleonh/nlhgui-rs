@@ -1,0 +1,3 @@
+[workspace]
+members = ["example", "nlhgui"]
+resolver = "3"

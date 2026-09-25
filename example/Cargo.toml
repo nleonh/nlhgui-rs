@@ -1,0 +1,10 @@
+[package]
+name = "example"
+version = "0.1.0"
+edition = "2024"
+license = "Unlicense"
+
+[dependencies]
+nlhgui = { path = "../nlhgui" }
+colog = "1.4.0"
+log = "0.4.34"

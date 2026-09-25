@@ -6,7 +6,7 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::{cmp::min, rc::Rc, sync::atomic};
+use std::{rc::Rc, sync::atomic};
 
 use log::{debug, warn};
 

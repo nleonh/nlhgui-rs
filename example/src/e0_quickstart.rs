@@ -32,7 +32,8 @@ fn build_ui(arg: UIBuildArg<MyState>) -> BoxWidget<Container> {
     .with_alignment(Alignment::Center, Alignment::Center)
 }
 
-pub fn simple_main() {
+// This would be your main function.
+pub fn run_quickstart() {
     // Prepare your UI state.
     let init_state = MyState { count: 0 };
 
@@ -41,6 +42,6 @@ pub fn simple_main() {
 
     // Launch the application.
     LaunchConfig::default()
-        .with_title("simple example")
+        .with_title("quickstart example")
         .launch(root);
 }

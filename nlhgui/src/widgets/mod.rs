@@ -6,10 +6,13 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::{cell::RefCell, cmp::max, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    events::GenericMouseButton, maxf, primitives::{self, Point, TextBlobDrawable, create_border_path}, widgets::{
+    events::GenericMouseButton,
+    maxf,
+    primitives::{self, Point, TextBlobDrawable, create_border_path},
+    widgets::{
         ex::{
             AvailableSpace, BuildingContext, CursorEvent, GlobalBuildingContext, LayoutingResult,
             SelectedLayout, Widget, WrapperWidget,
@@ -86,15 +89,17 @@ pub struct Container {
     children: Vec<Box<dyn Widget>>,
     child_layout_data: Vec<ContainerChildLayout>,
     spacing: f32,
+    horizontal: bool,
 }
 
 impl Container {
-    /// default spacing: 5
+    /// default spacing: 5, default alignment: horizontally
     pub fn new<const N: usize>(children: [Box<dyn Widget>; N]) -> Self {
         Self {
             child_layout_data: vec![],
             children: Vec::from(children),
             spacing: 5.,
+            horizontal: false,
         }
     }
 
@@ -106,9 +111,18 @@ impl Container {
     pub fn set_spacing(&mut self, spacing: f32) {
         self.spacing = spacing;
     }
-    
+
     pub fn add<T: 'static + Widget>(&mut self, new_child: T) {
         self.children.push(Box::new(new_child));
+    }
+
+    pub fn make_horizontal(&mut self) {
+        self.horizontal = true;
+    }
+
+    pub fn horizontal(mut self) -> Self {
+        self.make_horizontal();
+        self
     }
 }
 
@@ -120,14 +134,20 @@ impl Widget for Container {
     }
 
     fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        let mut height_count = 0.;
+        let mut align_count = 0.;
         for (i, c) in self.children.iter().enumerate() {
-            let ctx = BuildingContext {
+            let mut ctx = BuildingContext {
                 x_begin: ctx.x_begin,
-                y_begin: ctx.y_begin + height_count,
+                y_begin: ctx.y_begin,
             };
+            if self.horizontal {
+                ctx.x_begin += align_count;
+            } else {
+                ctx.y_begin += align_count;
+            }
+            
             c.build(target, ctx);
-            height_count += self.child_layout_data[i].selected_height + self.spacing;
+            align_count += self.child_layout_data[i].selected_height + self.spacing;
         }
     }
 
@@ -139,12 +159,22 @@ impl Widget for Container {
         let mut maxh = Some(0.);
         for c in &mut self.children {
             let c_layout = c.layout(avl_sp.clone());
-            minw = maxf(minw, c_layout.min_width);
-            minh += c_layout.min_height + self.spacing;
+
+            if self.horizontal {
+                minh = maxf(minh, c_layout.min_height);
+                minw += c_layout.min_width + self.spacing;
+            } else {
+                minw = maxf(minw, c_layout.min_width);
+                minh += c_layout.min_height + self.spacing;
+            }
 
             if let Some(maxw_c) = c_layout.max_width {
                 if let Some(maxw) = &mut maxw {
-                    *maxw = maxf(*maxw, maxw_c)
+                    if self.horizontal {
+                        *maxw += maxw_c + self.spacing;
+                    } else {
+                        *maxw = maxf(*maxw, maxw_c)
+                    }
                 }
             } else {
                 maxw = None;
@@ -152,7 +182,11 @@ impl Widget for Container {
 
             if let Some(maxh_c) = c_layout.max_height {
                 if let Some(maxh) = &mut maxh {
-                    *maxh += maxh_c + self.spacing;
+                    if self.horizontal {
+                        *maxh = maxf(*maxh, maxh_c);
+                    } else {
+                        *maxh += maxh_c + self.spacing;
+                    }
                 }
             } else {
                 maxh = None;
@@ -586,14 +620,8 @@ impl Widget for TextLine {
     fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
         let blob = self.blob.as_ref().unwrap();
         let offset = self.offset.as_ref().unwrap();
-        let pos = Point(
-                ctx.x_begin - offset.0,
-                ctx.y_begin - offset.1,
-            );
-        target.push(Box::new(TextBlobDrawable::new(
-            blob.clone(),
-            pos,
-        )));
+        let pos = Point(ctx.x_begin - offset.0, ctx.y_begin - offset.1);
+        target.push(Box::new(TextBlobDrawable::new(blob.clone(), pos)));
     }
 
     fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
@@ -609,7 +637,6 @@ impl Widget for TextLine {
         let tb = TextBlob::from_str(&self.data, &font).unwrap();
 
         let bounds = tb.bounds();
-        println!("{:?}", bounds);
         let width = bounds.width();
         let height = bounds.height();
         self.offset = Some((bounds.left, bounds.top));

@@ -8,13 +8,14 @@ mod e1_dev;
 mod e2_block_bad;
 mod e3_block_good;
 mod e4_container;
+mod e5_input;
 
 use e0_quickstart::run_quickstart;
 use e1_dev::run_dev;
 use e2_block_bad::run_block_bad;
 use e3_block_good::run_block_good;
-
-use crate::e4_container::run_containers;
+use e4_container::run_containers;
+use e5_input::run_input;
 
 fn help(arg_0: &String) {
     println!(
@@ -28,7 +29,9 @@ Exampless:
   - 0: quickstart
   - 1: development (chaotic)
   - 2: how you should NOT write blocking Code
-  - 3: blocking code",
+  - 3: blocking code
+  - 4: containers
+  - 5: text input",
         arg_0
     );
 }
@@ -70,6 +73,7 @@ fn main() {
         2 => run_block_bad(),
         3 => run_block_good(),
         4 => run_containers(),
+        5 => run_input(),
         wrong => {
             error!("No example {}. Try {} --help.", &args[0], wrong);
         }

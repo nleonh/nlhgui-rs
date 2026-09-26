@@ -4,12 +4,8 @@
 use std::rc::Rc;
 
 use nlhgui::{
-    LaunchConfig,
-    colors::BLACK,
-    widgets::{
-        Alignment, BoxBorder, BoxPadding, BoxWidget, ClickEvent, Container, TextButton, TextField,
-        TextFieldController, TextLine,
-        reactive::{ReactiveUI, UIBuildArg},
+    LaunchConfig, colors::BLACK, widgets::{
+        Alignment, BoxBorder, BoxPadding, BoxWidget, ClickEvent, Container, RadioButtonGroup, RadioButtonGroupCtrl, TextButton, TextField, TextFieldController, TextLine, reactive::{ReactiveUI, UIBuildArg},
     },
 };
 
@@ -26,8 +22,9 @@ fn build_ui(state: UIBuildArg<SimpleState>) -> BoxWidget<Container> {
     x.add(TextLine::new(format!("Count: {}", state.state().count)));
     x.add(TextLine::new("another line".to_string()));
     x.add(TextField::new(state.state().editing.clone()));
+    x.add(RadioButtonGroup::new(state.state().radio_group.clone()));
     x.add(TextButton::new(
-        "A rather long test too check layout BLA BLA BLA".to_string(),
+        "A rather long test too check layouting".to_string(),
         |_| {},
     ));
     BoxWidget::new(x)
@@ -39,12 +36,17 @@ fn build_ui(state: UIBuildArg<SimpleState>) -> BoxWidget<Container> {
 struct SimpleState {
     count: usize,
     editing: Rc<TextFieldController>,
+    radio_group: Rc<RadioButtonGroupCtrl>,
 }
 
 pub fn run_dev() {
     let root = ReactiveUI::new(
         SimpleState {
             count: 0,
+            radio_group: Rc::new(RadioButtonGroupCtrl::new(
+                ["Option A", "Another option", "3rd option"],
+                0,
+            )),
             editing: Rc::new(TextFieldController::new()),
         },
         build_ui,

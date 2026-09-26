@@ -6,7 +6,7 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use log::{debug, info};
+use log::debug;
 use skia_safe::{FontMgr, FontStyle, FontStyleSet, Typeface};
 
 pub struct FontsModule {
@@ -28,7 +28,7 @@ impl FontsModule {
         let mut system_font = self.match_family(name);
         if let Some(typeface) = system_font.match_style(FontStyle::normal()) {
             self.typeface = Some(typeface);
-            info!("Using font {}", name);
+            debug!("Using font {}", name);
             true
         } else {
             debug!("Could not load font {}", name);

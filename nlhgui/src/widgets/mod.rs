@@ -40,6 +40,9 @@ pub(crate) mod wtp;
 mod input;
 pub use input::*;
 
+mod select;
+pub use select::*;
+
 /// Literally just a rect.
 pub struct Rect {
     width: f32,
@@ -263,6 +266,7 @@ pub struct CursorReactiveBox<T: Widget> {
 }
 
 impl<T: Widget> CursorReactiveBox<T> {
+    // todo replace curr_down_inside with state: either hovered or clicked
     pub fn new(child: T, handlers: CursorReactiveBoxHandlers, curr_down_inside: bool) -> Self {
         Self {
             child,

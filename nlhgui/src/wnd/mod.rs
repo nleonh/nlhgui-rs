@@ -8,6 +8,8 @@
 
 use std::error::Error;
 
+use log::debug;
+
 use crate::events::EventHandling;
 
 pub mod gl;
@@ -22,5 +24,6 @@ pub trait WindowBackend<'a> {
 }
 
 pub fn create_window(title: &String) -> Result<Box<dyn WindowBackend<'static>>, Box<dyn Error>> {
+    debug!("backend: OpenGL");
     return gl::create_window(title);
 }

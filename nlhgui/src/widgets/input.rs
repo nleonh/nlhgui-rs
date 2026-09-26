@@ -8,7 +8,11 @@
 
 use std::cell::Cell;
 
-use skia_safe::{Color, colors::{BLACK, TRANSPARENT}, textlayout};
+use skia_safe::{
+    Color,
+    colors::{BLACK, TRANSPARENT},
+    textlayout,
+};
 
 use crate::{
     primitives::{ParagraphDrawable, create_cursor_drawable},
@@ -230,6 +234,8 @@ struct TextFieldControllerMut {
     insert_at: usize,
 }
 
+pub struct TextFieldEditEvent {}
+
 pub struct TextFieldController {
     inner: RefCell<TextFieldControllerMut>,
 }
@@ -243,6 +249,10 @@ impl TextFieldController {
                 insert_at: 0,
             }),
         }
+    }
+
+    pub fn get_text(&self) -> String {
+        self.inner.borrow().value.clone()
     }
 }
 
@@ -259,6 +269,7 @@ fn text_field_event(
     state: UIBuildArg<TextFieldState, Rc<TextFieldController>>,
     ev: TextReceiverEvent,
 ) {
+    let mut edited = false;
     match ev {
         TextReceiverEvent::Text(x) => {
             let mut new_str;
@@ -272,6 +283,7 @@ fn text_field_event(
             state.config().inner.borrow_mut().value = new_str;
             state.config().inner.borrow_mut().insert_at += x.len();
             state.request_rebuild();
+            edited = true;
         }
         TextReceiverEvent::LostFocus => {
             state.config().inner.borrow_mut().cur_down = false;
@@ -286,7 +298,13 @@ fn text_field_event(
             let del = conf.insert_at;
             conf.value.remove(del);
             state.request_rebuild();
+            edited = true;
         }
+    }
+    let tmp = state.state_mut().handle_edit.take();
+    if edited && let Some(h) = tmp {
+        (*h)(TextFieldEditEvent {});
+        state.state_mut().handle_edit = Some(h);
     }
 }
 
@@ -340,6 +358,7 @@ fn build_text_field_content(
 
 struct TextFieldState {
     hovered: bool,
+    handle_edit: Option<Box<dyn Fn(TextFieldEditEvent)>>
 }
 
 pub struct TextField {
@@ -354,11 +373,19 @@ impl TextField {
     pub fn new(ctrl: Rc<TextFieldController>) -> Self {
         Self {
             child: ReactiveUI::new_with_config(
-                TextFieldState { hovered: false },
+                TextFieldState { hovered: false, handle_edit: None },
                 build_text_field_content,
                 ctrl,
             ),
         }
+    }
+
+    /// **Panics** if there already is one event handler
+    pub fn with_edit_handler<H: 'static + Fn(TextFieldEditEvent)>(self, handler: H) -> Self {
+        assert!(self.child.state().handle_edit.is_none());
+
+        self.child.state_mut().handle_edit = Some(Box::new(handler));
+        self
     }
 }
 

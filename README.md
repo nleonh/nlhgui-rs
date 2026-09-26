@@ -60,7 +60,7 @@ The following lists are non-exhaustive.
 Please not that these features should not be considered "stable" (tested on Fedora Linux mostly).
 - **Basics**
     - Compilation (tested on Fedora and Windows)
-    - Window creation
+    - Window creation ([all examples](example/src))
     - Rendering using skia's OpenGL backend
 - **Simplicity**
     - Code is very easy to read
@@ -70,7 +70,8 @@ Please not that these features should not be considered "stable" (tested on Fedo
     - Vertical and horiztonal containers (see [example 4](example/src/e4_container.rs))
     - Layouting (center child, padding)
     - Text rendering, TextButton
-    - Very basic text editing (missing some important features)
+    - Radio buttons
+    - Very basic text editing, though missing some important features (see [example 5](example/src/e5_input.rs))
 - **Reactive UI**
     - Triggering UI updates in event handlers: click/hover (see [quickstart](example/src/quickstart.rs))
     - Interacting with worker threads (see [example 3](example/src/e3_block_good.rs))

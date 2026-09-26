@@ -213,6 +213,16 @@ impl<S, C, W: Widget, E> ReactiveUI<S, W, C, E> {
         self.handle_ev = Box::new(handler);
         self
     }
+
+    /// **Borrow checking is done at runtime**
+    pub fn state(&self) -> Ref<'_, S> {
+        self.inner.args.0.state.borrow()
+    }
+
+    /// **Borrow checking is done at runtime**
+    pub fn state_mut(&self) -> RefMut<'_, S> {
+        self.inner.args.0.state.borrow_mut()
+    }
 }
 
 impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for ReactiveUI<S, W, C, E> {

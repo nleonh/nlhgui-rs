@@ -158,11 +158,11 @@ impl RadioButtonGroup {
 }
 
 impl WrapperWidget for RadioButtonGroup {
-    fn child<'a>(&'a self) -> &'a dyn super::ex::Widget {
+    fn child(&self) -> &dyn super::ex::Widget {
         &self.child
     }
 
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn super::ex::Widget {
+    fn child_mut(&mut self) -> &mut dyn super::ex::Widget {
         &mut self.child
     }
 }
@@ -217,11 +217,11 @@ pub struct Checkbox {
 }
 
 impl WrapperWidget for Checkbox {
-    fn child<'a>(&'a self) -> &'a dyn Widget {
+    fn child(&self) -> &dyn Widget {
         &self.child
     }
 
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget {
+    fn child_mut(&mut self) -> &mut dyn Widget {
         &mut self.child
     }
 }

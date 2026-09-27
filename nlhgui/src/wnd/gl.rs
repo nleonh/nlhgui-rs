@@ -249,15 +249,14 @@ impl<'a> ApplicationHandler for App<'a> {
                     let modstate = self.modifiers.state();
                     let mut done = false;
 
-                    if let Some(text) = text.as_ref() {
-                        if !(text.is_empty()
+                    if let Some(text) = text.as_ref()
+                        && !(text.is_empty()
                             || text.chars().nth(0).unwrap().is_ascii_control()
                             || modstate.control_key()
                             || modstate.alt_key())
-                        {
-                            self.gel.handle_text_input(text.to_string());
-                            done = true;
-                        }
+                    {
+                        self.gel.handle_text_input(text.to_string());
+                        done = true;
                     }
 
                     if !done {

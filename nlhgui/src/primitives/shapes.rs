@@ -34,7 +34,7 @@ impl Rect {
 
 impl Drawable for Rect {
     fn draw(&self, canvas: &skia_safe::Canvas) {
-        let paint = skia_safe::Paint::new(&self.color, None);
+        let paint = skia_safe::Paint::new(self.color, None);
         canvas.draw_rect(self.rect_impl, &paint);
     }
 }
@@ -75,7 +75,7 @@ pub fn create_border_path(
 
     let mut paint = Paint::new(color, None);
     paint.set_style(PaintStyle::Stroke);
-    paint.set_stroke_width(thickness as f32);
+    paint.set_stroke_width(thickness);
 
     let path = pathb.snapshot();
     PathDrawable(path, paint)

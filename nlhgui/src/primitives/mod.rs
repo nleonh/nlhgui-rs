@@ -11,7 +11,9 @@ mod shapes;
 pub use shapes::*;
 
 use skia_safe::{
-    Canvas, Paint, PaintStyle, PathBuilder, TextBlob, colors::{BLACK, BLUE}, textlayout,
+    Canvas, Paint, PaintStyle, PathBuilder, TextBlob,
+    colors::{BLACK, BLUE},
+    textlayout,
 };
 
 #[derive(Debug)]

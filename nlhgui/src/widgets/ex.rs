@@ -6,10 +6,17 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::{cell::RefCell, rc::Rc, sync::{Arc, atomic::{self, AtomicBool}}};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{
+        Arc,
+        atomic::{self, AtomicBool},
+    },
+};
 
 use log::{debug, warn};
-use skia_safe::{Color4f};
+use skia_safe::Color4f;
 use winit::keyboard::NamedKey;
 
 use crate::{
@@ -35,7 +42,7 @@ pub enum CursorEvent<'a> {
 }
 
 pub(crate) struct CursorSensitiveArea {
-    handler: Box<dyn Fn(CursorEvent) -> ()>,
+    handler: Box<dyn Fn(CursorEvent)>,
     begin_x: f32,
     begin_y: f32,
     end_x: f32,
@@ -65,10 +72,14 @@ pub(crate) enum ConcurrencySolution {
 }
 
 impl ConcurrencySolution {
-    pub fn spawn_blocking<F>(&self, future: F) where F: 'static + Future + Send, F::Output: Send {
+    pub fn spawn_blocking<F>(&self, future: F)
+    where
+        F: 'static + Future + Send,
+        F::Output: Send,
+    {
         match self {
             Self::None => panic!("No concurrency runtime"),
-            Self::Tokio(t) => t.spawn(future)
+            Self::Tokio(t) => t.spawn(future),
         };
     }
 }
@@ -76,8 +87,8 @@ impl ConcurrencySolution {
 pub(crate) struct GlobalBuildingContextData {
     pub cursor_areas: Vec<CursorSensitiveArea>,
     pub cursor_pos: Point,
-    pub text_receiver: Option<Box<dyn Fn(TextReceiverEvent) -> ()>>,
-    pub concurrency: ConcurrencySolution
+    pub text_receiver: Option<Box<dyn Fn(TextReceiverEvent)>>,
+    pub concurrency: ConcurrencySolution,
 }
 
 impl GlobalBuildingContextData {
@@ -106,7 +117,7 @@ pub struct BuiltinStyleData {
 }
 
 pub struct GlobalRebuildTrigger {
-    rebuild_flag: Arc<AtomicBool>
+    rebuild_flag: Arc<AtomicBool>,
 }
 
 impl GlobalRebuildTrigger {
@@ -165,7 +176,9 @@ impl GlobalBuildingContext {
     }
 
     pub fn create_global_rebuild_trigger(&self) -> GlobalRebuildTrigger {
-        GlobalRebuildTrigger { rebuild_flag: self.need_rebuild.clone() }
+        GlobalRebuildTrigger {
+            rebuild_flag: self.need_rebuild.clone(),
+        }
     }
 
     pub fn with_tokio_rt(self, rt: tokio::runtime::Runtime) -> Self {
@@ -177,11 +190,15 @@ impl GlobalBuildingContext {
         self.fonts_mod.as_ref().unwrap()
     }
 
-    pub fn spawn_blocking<F>(&self, future: F) where F: 'static + Future + Send, F::Output: Send {
+    pub fn spawn_blocking<F>(&self, future: F)
+    where
+        F: 'static + Future + Send,
+        F::Output: Send,
+    {
         self.data.borrow().concurrency.spawn_blocking(future);
     }
 
-    pub fn register_cursor_sensitive_area<H: 'static + Fn(CursorEvent) -> ()>(
+    pub fn register_cursor_sensitive_area<H: 'static + Fn(CursorEvent)>(
         &self,
         begin_x: f32,
         begin_y: f32,
@@ -203,12 +220,10 @@ impl GlobalBuildingContext {
     }
 
     pub fn handle_key_event(&self, ev: GenericKeyEvent) {
-        if !(ev.alt || ev.ctrl) {
-            if ev.key == NamedKey::Backspace || ev.key == NamedKey::Delete {
-                let d = self.data.borrow();
-                if let Some(recv) = d.text_receiver.as_ref() {
-                    (**recv)(TextReceiverEvent::Delete);
-                }
+        if !(ev.alt || ev.ctrl) && (ev.key == NamedKey::Backspace || ev.key == NamedKey::Delete) {
+            let d = self.data.borrow();
+            if let Some(recv) = d.text_receiver.as_ref() {
+                (**recv)(TextReceiverEvent::Delete);
             }
         }
     }
@@ -361,8 +376,8 @@ pub trait Widget {
 
 /// less boilerplate, auto-implements Widget by just calling the child's methods
 pub trait WrapperWidget {
-    fn child<'a>(&'a self) -> &'a dyn Widget;
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget;
+    fn child(&self) -> &dyn Widget;
+    fn child_mut(&mut self) -> &mut dyn Widget;
 }
 
 impl<T> Widget for T

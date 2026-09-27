@@ -6,7 +6,10 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::{cell::{Cell, RefCell}, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use crate::{
     events::GenericMouseButton,
@@ -148,7 +151,7 @@ impl Widget for Container {
             } else {
                 ctx.y_begin += align_count;
             }
-            
+
             c.build(target, ctx);
             align_count += self.child_layout_data[i].selected_height + self.spacing;
         }
@@ -233,11 +236,11 @@ impl Widget for Container {
 }
 
 impl WrapperWidget for Box<dyn Widget> {
-    fn child<'a>(&'a self) -> &'a dyn Widget {
+    fn child(&self) -> &dyn Widget {
         self.as_ref()
     }
 
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget {
+    fn child_mut(&mut self) -> &mut dyn Widget {
         self.as_mut()
     }
 }
@@ -325,10 +328,11 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                     }
                 }
                 CursorEvent::Up(b) => {
-                    if *b == GenericMouseButton::Left {
-                        if statec.act_inside.get() && statec.down_inside.get() {
-                            (*statec.handlers.on_clicked)(ClickEvent {});
-                        }
+                    if *b == GenericMouseButton::Left
+                        && statec.act_inside.get()
+                        && statec.down_inside.get()
+                    {
+                        (*statec.handlers.on_clicked)(ClickEvent {});
                     }
                 }
             },
@@ -342,7 +346,7 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
 }
 
 struct ButtonState {
-    click_handler: Rc<dyn Fn(ClickEvent) -> ()>,
+    click_handler: Rc<dyn Fn(ClickEvent)>,
     hovered: bool,
 }
 
@@ -641,7 +645,7 @@ impl Widget for TextLine {
         let typeface = self.ctx.as_ref().unwrap().fonts().std_typeface();
         let font = Font::from_typeface(
             typeface,
-            Some(self.ctx.as_ref().unwrap().builtin_style.std_font_size as f32),
+            Some(self.ctx.as_ref().unwrap().builtin_style.std_font_size),
         );
         let tb = TextBlob::from_str(&self.data, &font).unwrap();
 

@@ -43,29 +43,28 @@ fn main() {
         .init();
 
     let args: Vec<String> = std::env::args().collect();
-    let x: usize;
-    if args.len() == 1 {
+    let x = if args.len() == 1 {
         warn!(
             "No command line argument provided. Try {} --help. Running example 0 (quickstart).",
-            &args[0]
+            args[0]
         );
-        x = 0;
+        0
     } else if args.len() == 2 {
         let arg = &args[1];
         if arg == "--help" {
             return help(&args[0]);
         }
-        x = match arg.parse::<usize>() {
+        match arg.parse::<usize>() {
             Ok(v) => v,
             Err(_) => {
-                error!("Bad argument (failed to parse). Try {} --help.", &args[0]);
+                error!("Bad argument (failed to parse). Try {} --help.", args[0]);
                 return;
             }
-        };
+        }
     } else {
-        error!("Too many command line arguments. Try {} --help.", &args[0]);
+        error!("Too many command line arguments. Try {} --help.", args[0]);
         return;
-    }
+    };
 
     match x {
         0 => run_quickstart(),
@@ -75,7 +74,7 @@ fn main() {
         4 => run_containers(),
         5 => run_input(),
         wrong => {
-            error!("No example {}. Try {} --help.", &args[0], wrong);
+            error!("No example {}. Try {} --help.", args[0], wrong);
         }
     };
 }

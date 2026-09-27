@@ -4,8 +4,13 @@
 use std::rc::Rc;
 
 use nlhgui::{
-    LaunchConfig, colors::BLACK, widgets::{
-        Alignment, BoxBorder, BoxPadding, BoxWidget, Checkbox, CheckboxController, ClickEvent, Container, RadioButtonGroup, RadioButtonGroupCtrl, TextButton, TextField, TextFieldController, TextLine, reactive::{ReactiveUI, UIBuildArg},
+    LaunchConfig,
+    colors::BLACK,
+    widgets::{
+        Alignment, BoxBorder, BoxPadding, BoxWidget, Checkbox, CheckboxController, ClickEvent,
+        Container, RadioButtonGroup, RadioButtonGroupCtrl, TextButton, TextField,
+        TextFieldController, TextLine,
+        reactive::{ReactiveUI, UIBuildArg},
     },
 };
 
@@ -46,7 +51,7 @@ pub fn run_dev() {
                 0,
             )),
             editing: Rc::new(TextFieldController::new()),
-            checkbox: Rc::new(CheckboxController::new("A checkbox".to_string(), false))
+            checkbox: Rc::new(CheckboxController::new("A checkbox".to_string(), false)),
         },
         build_ui,
     );

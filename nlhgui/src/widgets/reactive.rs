@@ -67,10 +67,10 @@ impl<T> ConcurrentTaskArg<T> {
 pub struct UIBuildArg<S, C = (), E = ()>(Rc<UIBuildArgsData<S, C, E>>);
 
 impl<S: 'static, C: 'static, E: 'static> UIBuildArg<S, C, E> {
-    pub fn handler<CallbackArgument, F: 'static + Fn(Self, CallbackArgument) -> ()>(
+    pub fn handler<CallbackArgument, F: 'static + Fn(Self, CallbackArgument)>(
         &self,
         handler: F,
-    ) -> Box<dyn 'static + Fn(CallbackArgument) -> ()> {
+    ) -> Box<dyn 'static + Fn(CallbackArgument)> {
         let copy = self.0.clone();
         let handler = Box::new(handler);
         Box::new(move |d| {
@@ -153,10 +153,12 @@ impl<S, C, E> ReactiveUIImpl<S, C, E> {
         }
     }
 
-    pub(crate) fn to_build_arg<W: Widget>(&self) -> UIBuildArg<S, C, E> {
+    pub(crate) fn to_build_arg(&self) -> UIBuildArg<S, C, E> {
         UIBuildArg(self.args.0.clone())
     }
 }
+
+type HandleEvFnT<E, S, C> = dyn Fn(E, UIBuildArg<S, C, E>);
 
 /// # Reactive UI
 /// Example:
@@ -179,7 +181,7 @@ pub struct ReactiveUI<StateType, W: Widget, ConfigType = (), EventType = ()> {
     inner: ReactiveUIImpl<StateType, ConfigType, EventType>,
     widget: Option<W>,
     build: Box<UIBuildType<StateType, W, ConfigType, EventType>>,
-    handle_ev: Box<dyn Fn(EventType, UIBuildArg<StateType, ConfigType, EventType>)>,
+    handle_ev: Box<HandleEvFnT<EventType, StateType, ConfigType>>,
 }
 
 impl<S, W: Widget, E> ReactiveUI<S, W, (), E> {
@@ -236,7 +238,7 @@ impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for Reactiv
 
     fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
         while let Some(ev) = self.inner.args.recv_task_event() {
-            (*self.handle_ev)(ev, self.inner.to_build_arg::<W>());
+            (*self.handle_ev)(ev, self.inner.to_build_arg());
         }
         if self.inner.args.0.needs_rebuild.get() {
             let tmp = &self.inner.args.0;
@@ -244,7 +246,7 @@ impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for Reactiv
             let glb_ctx = tmp2.as_ref().unwrap();
             // Don't delete: Helps detecting bugs related to too many redraws
             debug!("Rebuilding reactive UI tree");
-            let mut widget = (*self.build)(self.inner.to_build_arg::<W>());
+            let mut widget = (*self.build)(self.inner.to_build_arg());
             widget.hello(glb_ctx);
             self.widget = Some(widget);
             tmp.needs_rebuild.set(false);

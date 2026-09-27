@@ -24,13 +24,19 @@ pub struct GenericKeyEvent {
 pub use winit::keyboard::NamedKey;
 
 pub struct EventHandling<'a> {
-    render_fn: Box<dyn FnMut(&Canvas) -> () + 'a>,
-    resize_fn: Box<dyn FnMut(u32, u32) -> () + 'a>,
-    cursor_move_fn: Box<dyn FnMut(u32, u32) -> () + 'a>,
-    mouse_btn_fn: Box<dyn FnMut(bool, GenericMouseButton) -> () + 'a>,
-    text_input_fn: Box<dyn Fn(String) -> () + 'a>,
+    render_fn: Box<dyn FnMut(&Canvas) + 'a>,
+    resize_fn: Box<dyn FnMut(u32, u32) + 'a>,
+    cursor_move_fn: Box<dyn FnMut(u32, u32) + 'a>,
+    mouse_btn_fn: Box<dyn FnMut(bool, GenericMouseButton) + 'a>,
+    text_input_fn: Box<dyn Fn(String) + 'a>,
     wants_redraw_fn: Box<dyn Fn() -> bool + 'a>,
     key_event_fn: Box<dyn Fn(GenericKeyEvent) + 'a>,
+}
+
+impl<'a> Default for EventHandling<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<'a> EventHandling<'a> {
@@ -59,11 +65,11 @@ impl<'a> EventHandling<'a> {
         (*self.render_fn)(canvas);
     }
 
-    pub fn on_render<H: FnMut(&Canvas) -> () + 'a>(&mut self, handler: H) {
+    pub fn on_render<H: FnMut(&Canvas) + 'a>(&mut self, handler: H) {
         self.render_fn = Box::new(handler);
     }
 
-    pub fn on_resize<H: 'a + FnMut(u32, u32) -> ()>(&mut self, handler: H) {
+    pub fn on_resize<H: 'a + FnMut(u32, u32)>(&mut self, handler: H) {
         self.resize_fn = Box::new(handler);
     }
 
@@ -75,11 +81,11 @@ impl<'a> EventHandling<'a> {
         (*self.cursor_move_fn)(x, y);
     }
 
-    pub fn on_cursor_move<H: 'a + FnMut(u32, u32) -> ()>(&mut self, handler: H) {
+    pub fn on_cursor_move<H: 'a + FnMut(u32, u32)>(&mut self, handler: H) {
         self.cursor_move_fn = Box::new(handler);
     }
 
-    pub fn on_mouse_btn<H: 'a + FnMut(bool, GenericMouseButton) -> ()>(&mut self, handler: H) {
+    pub fn on_mouse_btn<H: 'a + FnMut(bool, GenericMouseButton)>(&mut self, handler: H) {
         self.mouse_btn_fn = Box::new(handler);
     }
 

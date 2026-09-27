@@ -70,7 +70,7 @@ pub struct Button<C: Widget> {
 pub type TextButton = Button<TextButtonContent>;
 
 impl TextButton {
-    pub fn new<H: 'static + Fn(ClickEvent) -> ()>(text: String, handler: H) -> Self {
+    pub fn new<H: 'static + Fn(ClickEvent)>(text: String, handler: H) -> Self {
         Self {
             child: ReactiveUI::new(
                 TextButtonState {
@@ -87,11 +87,11 @@ impl TextButton {
 }
 
 impl<C: 'static + Widget> WrapperWidget for Button<C> {
-    fn child<'a>(&'a self) -> &'a dyn Widget {
+    fn child(&self) -> &dyn Widget {
         &self.child
     }
 
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget {
+    fn child_mut(&mut self) -> &mut dyn Widget {
         &mut self.child
     }
 }
@@ -159,7 +159,7 @@ impl Widget for TextFieldContent {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
     fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        let mut prg = self.prg.take().take().unwrap();
+        let mut prg = self.prg.take().unwrap();
 
         if let Some(cursor_pos) = &self.cursor_pos {
             let mut offset = None;
@@ -216,7 +216,7 @@ impl Widget for TextFieldContent {
         builder.add_text(&self.content);
 
         let mut prg = builder.build();
-        prg.layout(width as f32);
+        prg.layout(width);
         let mut height = prg.height();
         if height == 0. {
             height = 30.;
@@ -238,6 +238,12 @@ pub struct TextFieldEditEvent {}
 
 pub struct TextFieldController {
     inner: RefCell<TextFieldControllerMut>,
+}
+
+impl Default for TextFieldController {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TextFieldController {
@@ -358,7 +364,7 @@ fn build_text_field_content(
 
 struct TextFieldState {
     hovered: bool,
-    handle_edit: Option<Box<dyn Fn(TextFieldEditEvent)>>
+    handle_edit: Option<Box<dyn Fn(TextFieldEditEvent)>>,
 }
 
 pub struct TextField {
@@ -373,7 +379,10 @@ impl TextField {
     pub fn new(ctrl: Rc<TextFieldController>) -> Self {
         Self {
             child: ReactiveUI::new_with_config(
-                TextFieldState { hovered: false, handle_edit: None },
+                TextFieldState {
+                    hovered: false,
+                    handle_edit: None,
+                },
                 build_text_field_content,
                 ctrl,
             ),
@@ -390,11 +399,11 @@ impl TextField {
 }
 
 impl WrapperWidget for TextField {
-    fn child<'a>(&'a self) -> &'a dyn Widget {
+    fn child(&self) -> &dyn Widget {
         &self.child
     }
 
-    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget {
+    fn child_mut(&mut self) -> &mut dyn Widget {
         &mut self.child
     }
 }

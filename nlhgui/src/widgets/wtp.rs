@@ -11,7 +11,9 @@ use std::{rc::Rc, sync::atomic};
 use log::{debug, warn};
 
 use crate::{
-    minf, primitives::Drawable, widgets::ex::{
+    minf,
+    primitives::Drawable,
+    widgets::ex::{
         AvailableSpace, BuildingContext, GlobalBuildingContext, LayoutingResult, SelectedLayout,
         Widget,
     },
@@ -140,6 +142,6 @@ impl WidgetsToPrimitivesInterface {
         self.root.build(&mut result, building_ctx);
 
         self.glb_ctx.after_build();
-        return result;
+        result
     }
 }

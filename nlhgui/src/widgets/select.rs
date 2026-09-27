@@ -12,7 +12,8 @@ use std::{
 };
 
 use skia_safe::{
-    Paint, PaintStyle, PathBuilder, colors::{BLACK, BLUE},
+    Paint, PaintStyle, PathBuilder,
+    colors::{BLACK, BLUE},
 };
 
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
 
 use crate::widgets::ex::*;
 
+/// Group of radio buttons (select exactly one out of multiple options)
 pub struct RadioButtonGroup {
     child: ReactiveUI<RadioButtonGroupState, Container, Rc<RadioButtonGroupCtrl>>,
 }
@@ -34,13 +36,12 @@ struct RadioButtonGroupState {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-enum RadioItemState {
-    Selected,
-    Hovered,
-    Nothing,
+struct SelectableItemState {
+    selected: bool,
+    hovered: bool,
 }
 
-struct RadioClickField(RadioItemState);
+struct RadioClickField(SelectableItemState);
 
 impl Widget for RadioClickField {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
@@ -54,7 +55,7 @@ impl Widget for RadioClickField {
         p.line_to((x0 + 16., y0 + 16.));
         p.line_to((x0, y0 + 16.));
 
-        if self.0 == RadioItemState::Selected {
+        if self.0.selected {
             p.line_to((x0, y0));
             p.line_to((x0 + 16., y0 + 16.));
             p.move_to((x0 + 16., y0));
@@ -64,7 +65,8 @@ impl Widget for RadioClickField {
         }
 
         let mut paint = Paint::new(
-            if self.0 == RadioItemState::Hovered {
+            // if selected, we don't want a hover animation (not unselectedable)
+            if !self.0.selected && self.0.hovered {
                 BLUE
             } else {
                 BLACK
@@ -86,7 +88,7 @@ impl Widget for RadioClickField {
 
 fn build_radio_click_field(
     arg: &UIBuildArg<RadioButtonGroupState, Rc<RadioButtonGroupCtrl>>,
-    state: RadioItemState,
+    state: SelectableItemState,
     index: usize,
 ) -> CursorReactiveBox<RadioClickField> {
     CursorReactiveBox::new(
@@ -105,13 +107,13 @@ fn build_radio_click_field(
                 arg.request_rebuild();
             })),
         },
-        state != RadioItemState::Nothing,
+        state.hovered,
     )
 }
 
 fn build_radio_item(
     arg: &UIBuildArg<RadioButtonGroupState, Rc<RadioButtonGroupCtrl>>,
-    item_state: RadioItemState,
+    item_state: SelectableItemState,
     txt: String,
     index: usize,
 ) -> Container {
@@ -130,15 +132,12 @@ fn build_radio_btn_group(
     assert!(selected <= n_items);
     let mut container = Container::new([]);
     for (i, txt) in arg.config().texts.borrow().iter().enumerate() {
+        let selected = selected == i;
+        // If selected, we don't want a hover animation
+        let hovered = hovered == i;
         container.add(build_radio_item(
             &arg,
-            if i == selected {
-                RadioItemState::Selected
-            } else if i == hovered {
-                RadioItemState::Hovered
-            } else {
-                RadioItemState::Nothing
-            },
+            SelectableItemState { selected, hovered },
             txt.clone(),
             i,
         ));
@@ -168,6 +167,7 @@ impl WrapperWidget for RadioButtonGroup {
     }
 }
 
+/// Controller for [`RadioButtonGroup`] (saves state across rebuilds)
 pub struct RadioButtonGroupCtrl {
     selected: Cell<usize>,
     texts: RefCell<Vec<String>>,
@@ -184,6 +184,125 @@ impl RadioButtonGroupCtrl {
         Self {
             texts: RefCell::new(texts),
             selected: Cell::new(selected),
+        }
+    }
+}
+
+struct CheckboxState {
+    hovered: bool,
+}
+
+/// Controller for [`Checkbox`] (remembers state across rebuilds)
+pub struct CheckboxController {
+    ticked: Cell<bool>,
+    label: String,
+}
+
+impl CheckboxController {
+    pub fn new(label: String, ticked: bool) -> Self {
+        Self {
+            label,
+            ticked: Cell::new(ticked),
+        }
+    }
+
+    pub fn is_ticked(&self) -> bool {
+        self.ticked.get()
+    }
+}
+
+/// Options to tick ("yes") or don't tick ("no")
+pub struct Checkbox {
+    child: ReactiveUI<CheckboxState, Container, Rc<CheckboxController>>,
+}
+
+impl WrapperWidget for Checkbox {
+    fn child<'a>(&'a self) -> &'a dyn Widget {
+        &self.child
+    }
+
+    fn child_mut<'a>(&'a mut self) -> &'a mut dyn Widget {
+        &mut self.child
+    }
+}
+
+struct CheckboxButton(SelectableItemState);
+
+impl Widget for CheckboxButton {
+    fn apply_layout(&mut self, _layout: SelectedLayout) {}
+
+    fn build(&self, target: &mut Vec<Box<dyn crate::primitives::Drawable>>, ctx: BuildingContext) {
+        let mut p = PathBuilder::new();
+        let x0 = ctx.x_begin;
+        let y0 = ctx.y_begin;
+        p.move_to((x0, y0));
+        p.line_to((x0 + 16., y0));
+        p.line_to((x0 + 16., y0 + 16.));
+        p.line_to((x0, y0 + 16.));
+
+        if self.0.selected {
+            p.line_to((x0, y0));
+            p.move_to((x0 + 1., y0 + 9.));
+            p.line_to((x0 + 8., y0 + 14.));
+            p.line_to((x0 + 15., y0));
+        } else {
+            p.close();
+        }
+
+        let mut paint = Paint::new(if self.0.hovered { BLUE } else { BLACK }, None);
+        paint.set_stroke_width(2.);
+        paint.set_style(PaintStyle::Stroke);
+
+        paint.set_anti_alias(true);
+
+        target.push(Box::new(PathDrawable(p.snapshot(), paint)));
+    }
+
+    fn hello(&mut self, _ctx: &Rc<GlobalBuildingContext>) {}
+
+    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+        LayoutingResult::fix(20., 20.).checked(avl_sp)
+    }
+}
+
+fn build_checkbox(arg: UIBuildArg<CheckboxState, Rc<CheckboxController>>) -> Container {
+    Container::new([
+        Box::new(CursorReactiveBox::new(
+            CheckboxButton(SelectableItemState {
+                selected: arg.config().ticked.get(),
+                hovered: arg.state().hovered,
+            }),
+            CursorReactiveBoxHandlers {
+                on_clicked: arg.handler(|arg, _| {
+                    let c = arg.config();
+                    c.ticked.set(!c.ticked.get());
+                    arg.request_rebuild();
+                }),
+                on_hover: arg.handler(|arg, _| {
+                    arg.state_mut().hovered = true;
+                    arg.request_rebuild();
+                }),
+                on_hover_end: arg.handler(|arg, _| {
+                    arg.state_mut().hovered = false;
+                    arg.request_rebuild();
+                }),
+            },
+            arg.state().hovered,
+        )),
+        Box::new(TextLine::new(arg.config().label.clone())),
+    ])
+    .horizontal()
+}
+
+impl Checkbox {
+    /// Create a checkbox. Label and state (ticked or not) are specified through `ctrl`
+    pub fn new(ctrl: Rc<CheckboxController>) -> Self {
+        Self {
+            child: ReactiveUI::new_with_config(
+                CheckboxState { hovered: false },
+                build_checkbox,
+                ctrl,
+            ),
         }
     }
 }

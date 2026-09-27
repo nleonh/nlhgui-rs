@@ -14,6 +14,6 @@ glutin = "0.32.3"
 glutin-winit = "0.5.0"
 log = "0.4.34"
 raw-window-handle = "0.6.2"
-skia-safe = { version = "0.153.3", features = ["gl", "textlayout"] }
+skia-safe = { version = "0.153.3", features = [ "gl", "textlayout", "svg" ] }
 tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread"] }
 winit = "0.30.13"

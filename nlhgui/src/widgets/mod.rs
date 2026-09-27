@@ -6,7 +6,7 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::{Cell, RefCell}, rc::Rc};
 
 use crate::{
     events::GenericMouseButton,
@@ -254,7 +254,10 @@ pub struct CursorReactiveBoxHandlers {
 
 struct CursorReactiveInnerState {
     handlers: CursorReactiveBoxHandlers,
-    is_down_inside: RefCell<bool>,
+    /// `true`, if currently hovering inside
+    act_inside: Cell<bool>,
+    /// `true`, if down was emitted when hovering inside
+    down_inside: Cell<bool>,
 }
 
 /// In most cases, [`TextButton`] or [`Button<T>`] will get the job done.
@@ -266,13 +269,13 @@ pub struct CursorReactiveBox<T: Widget> {
 }
 
 impl<T: Widget> CursorReactiveBox<T> {
-    // todo replace curr_down_inside with state: either hovered or clicked
-    pub fn new(child: T, handlers: CursorReactiveBoxHandlers, curr_down_inside: bool) -> Self {
+    pub fn new(child: T, handlers: CursorReactiveBoxHandlers, cur_hovered: bool) -> Self {
         Self {
             child,
             state: Rc::new(CursorReactiveInnerState {
                 handlers,
-                is_down_inside: RefCell::new(curr_down_inside),
+                act_inside: Cell::new(cur_hovered),
+                down_inside: Cell::new(false),
             }),
             glb_ctx: None,
             layout: SelectedLayout {
@@ -306,22 +309,24 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                 CursorEvent::Entered => {
                     // Important: If a rebuild is triggered by a handler, this CursorEvent
                     // might be emitted multiple times. maybe TODO
-                    if !*statec.is_down_inside.borrow() {
+                    if !statec.act_inside.get() {
                         (*statec.handlers.on_hover)(())
                     }
                 }
                 CursorEvent::Left => {
-                    *statec.is_down_inside.borrow_mut() = false;
+                    statec.act_inside.set(false);
+                    statec.down_inside.set(false);
                     (*statec.handlers.on_hover_end)(())
                 }
                 CursorEvent::Down(b) => {
                     if *b == GenericMouseButton::Left {
-                        *statec.is_down_inside.borrow_mut() = true;
+                        statec.down_inside.set(true);
+                        statec.act_inside.set(true);
                     }
                 }
                 CursorEvent::Up(b) => {
                     if *b == GenericMouseButton::Left {
-                        if *statec.is_down_inside.borrow() {
+                        if statec.act_inside.get() && statec.down_inside.get() {
                             (*statec.handlers.on_clicked)(ClickEvent {});
                         }
                     }

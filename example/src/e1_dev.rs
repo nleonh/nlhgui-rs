@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use nlhgui::{
     LaunchConfig, colors::BLACK, widgets::{
-        Alignment, BoxBorder, BoxPadding, BoxWidget, ClickEvent, Container, RadioButtonGroup, RadioButtonGroupCtrl, TextButton, TextField, TextFieldController, TextLine, reactive::{ReactiveUI, UIBuildArg},
+        Alignment, BoxBorder, BoxPadding, BoxWidget, Checkbox, CheckboxController, ClickEvent, Container, RadioButtonGroup, RadioButtonGroupCtrl, TextButton, TextField, TextFieldController, TextLine, reactive::{ReactiveUI, UIBuildArg},
     },
 };
 
@@ -20,13 +20,10 @@ fn build_ui(state: UIBuildArg<SimpleState>) -> BoxWidget<Container> {
         state.handler(on_btn_click),
     ))]);
     x.add(TextLine::new(format!("Count: {}", state.state().count)));
+    x.add(Checkbox::new(state.state().checkbox.clone()));
     x.add(TextLine::new("another line".to_string()));
     x.add(TextField::new(state.state().editing.clone()));
     x.add(RadioButtonGroup::new(state.state().radio_group.clone()));
-    x.add(TextButton::new(
-        "A rather long test too check layouting".to_string(),
-        |_| {},
-    ));
     BoxWidget::new(x)
         .with_alignment(Alignment::Center, Alignment::Center)
         .with_padding(BoxPadding::all(5.))
@@ -37,6 +34,7 @@ struct SimpleState {
     count: usize,
     editing: Rc<TextFieldController>,
     radio_group: Rc<RadioButtonGroupCtrl>,
+    checkbox: Rc<CheckboxController>,
 }
 
 pub fn run_dev() {
@@ -48,6 +46,7 @@ pub fn run_dev() {
                 0,
             )),
             editing: Rc::new(TextFieldController::new()),
+            checkbox: Rc::new(CheckboxController::new("A checkbox".to_string(), false))
         },
         build_ui,
     );

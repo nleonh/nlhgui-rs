@@ -12,7 +12,7 @@ use std::{
     sync::mpsc::{Receiver, Sender, channel},
 };
 
-use log::warn;
+use log::{debug, warn};
 
 use crate::{
     primitives::Drawable,
@@ -242,6 +242,8 @@ impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for Reactiv
             let tmp = &self.inner.args.0;
             let tmp2 = tmp.glb_ctx.borrow();
             let glb_ctx = tmp2.as_ref().unwrap();
+            // Don't delete: Helps detecting bugs related to too many redraws
+            debug!("Rebuilding reactive UI tree");
             let mut widget = (*self.build)(self.inner.to_build_arg::<W>());
             widget.hello(glb_ctx);
             self.widget = Some(widget);

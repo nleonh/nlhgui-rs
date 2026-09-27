@@ -70,7 +70,7 @@ Please not that these features should not be considered "stable" (tested on Fedo
     - Vertical and horiztonal containers (see [example 4](example/src/e4_container.rs))
     - Layouting (center child, padding)
     - Text rendering, TextButton
-    - Radio buttons
+    - Radio buttons, checkboxes (see [example 5](example/src/e5_input.rs))
     - Very basic text editing, though missing some important features (see [example 5](example/src/e5_input.rs))
 - **Reactive UI**
     - Triggering UI updates in event handlers: click/hover (see [quickstart](example/src/quickstart.rs))

@@ -61,7 +61,7 @@ Please not that these features should not be considered "stable" (tested on Fedo
 - **Basics**
     - Compilation (tested on Fedora and Windows)
     - Window creation ([all examples](example/src))
-    - Rendering using skia's OpenGL backend
+    - Rendering using skia's OpenGL and Vulkan backends
 - **Simplicity**
     - Code is very easy to read
     - No callback hell
@@ -76,11 +76,12 @@ Please not that these features should not be considered "stable" (tested on Fedo
     - Triggering UI updates in event handlers: click/hover (see [quickstart](example/src/quickstart.rs))
     - Interacting with worker threads (see [example 3](example/src/e3_block_good.rs))
 ### Planned
-- Use more modern skia backends, if available: Vulkan, Apple's Metal, maybe DirectX
+- Don't use OpenGL, use Metal/DirectX instead, improve Vulkan support
 - Common widgets: checkbox, menu bar, context menu
 - SVG rendering
 ### Limitations
 - Error handling: many `unwrap`s and `panic`s so far
+- No accessibilty
 ## License
 
 The library `nlhgui` is licensed under the [Mozilla Public License 2.0](https://choosealicense.com/licenses/mpl-2.0/).

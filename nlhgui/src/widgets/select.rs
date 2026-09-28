@@ -186,6 +186,10 @@ impl RadioButtonGroupCtrl {
             selected: Cell::new(selected),
         }
     }
+
+    pub fn get_selected(&self) -> usize {
+        self.selected.get()
+    }
 }
 
 struct CheckboxState {

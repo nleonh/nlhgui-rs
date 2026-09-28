@@ -56,7 +56,7 @@ use log::debug;
 use raw_window_handle::HasWindowHandle;
 use winit::{
     application::ApplicationHandler,
-    event::{KeyEvent, Modifiers, MouseButton, WindowEvent},
+    event::WindowEvent,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowAttributes},
 };
@@ -66,7 +66,7 @@ use skia_safe::{
     gpu::{self, SurfaceOrigin, backend_render_targets, gl::FramebufferInfo},
 };
 
-use crate::events::{EventHandling, GenericKeyEvent, GenericMouseButton};
+use crate::{events::EventHandling, wnd::WindowBackend};
 
 struct App<'a> {
     gel: EventHandling<'a>,
@@ -74,7 +74,6 @@ struct App<'a> {
     fb_info: FramebufferInfo,
     num_samples: usize,
     stencil_size: usize,
-    modifiers: Modifiers,
     previous_frame_start: Instant,
 }
 
@@ -211,67 +210,10 @@ impl<'a> ApplicationHandler for App<'a> {
 
                 self.gel.handle_resize(width, height);
             }
-            WindowEvent::ModifiersChanged(new_modifiers) => self.modifiers = new_modifiers,
-            WindowEvent::CursorMoved {
-                device_id: _,
-                position,
-            } => {
-                let (x, y): (f64, f64) = position.into();
-                let x = x as u32;
-                let y = y as u32;
-                self.gel.handle_cursor_move(x, y);
-            }
-            WindowEvent::MouseInput {
-                device_id: _,
-                state,
-                button,
-            } => {
-                let button = match button {
-                    MouseButton::Left => Some(GenericMouseButton::Left),
-                    MouseButton::Right => Some(GenericMouseButton::Right),
-                    _ => None,
-                };
-                if let Some(button) = button {
-                    self.gel.handle_mouse_btn(state.is_pressed(), button);
-                }
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        text,
-                        state,
-                        logical_key,
-                        ..
-                    },
-                ..
-            } => {
-                if state.is_pressed() {
-                    let modstate = self.modifiers.state();
-                    let mut done = false;
-
-                    if let Some(text) = text.as_ref()
-                        && !(text.is_empty()
-                            || text.chars().nth(0).unwrap().is_ascii_control()
-                            || modstate.control_key()
-                            || modstate.alt_key())
-                    {
-                        self.gel.handle_text_input(text.to_string());
-                        done = true;
-                    }
-
-                    if !done {
-                        self.gel.handle_key_event(GenericKeyEvent {
-                            ctrl: modstate.control_key(),
-                            alt: modstate.alt_key(),
-                            key: logical_key,
-                        });
-                    }
-                }
-            }
             WindowEvent::RedrawRequested => {
                 draw_frame = true;
             }
-            _ => (),
+            x => self.gel.handle_winit_event(x),
         }
 
         let expected_frame_length_seconds = 1.0 / 10.0;
@@ -303,9 +245,7 @@ impl<'a> ApplicationHandler for App<'a> {
     }
 }
 
-pub fn create_window(
-    title: &String,
-) -> Result<Box<dyn super::WindowBackend<'static>>, Box<dyn Error>> {
+pub fn create_gl_window(title: &String) -> Result<Box<dyn WindowBackend<'static>>, Box<dyn Error>> {
     let el = EventLoop::new()?;
 
     let window_attributes = WindowAttributes::default().with_title(title);
@@ -405,7 +345,6 @@ pub fn create_window(
         fb_info,
         num_samples,
         stencil_size,
-        modifiers: Modifiers::default(),
         previous_frame_start: Instant::now(),
     };
     Ok(Box::new(GlWindowBackend { app, el }))

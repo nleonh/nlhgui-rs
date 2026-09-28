@@ -31,6 +31,7 @@ pub struct EventHandling<'a> {
     text_input_fn: Box<dyn Fn(String) + 'a>,
     wants_redraw_fn: Box<dyn Fn() -> bool + 'a>,
     key_event_fn: Box<dyn Fn(GenericKeyEvent) + 'a>,
+    modifiers: winit::event::Modifiers,
 }
 
 impl<'a> Default for EventHandling<'a> {
@@ -58,6 +59,7 @@ impl<'a> EventHandling<'a> {
                 false
             }),
             key_event_fn: Box::new(|_| error!("dummy key event fn called")),
+            modifiers: winit::event::Modifiers::default()
         }
     }
 
@@ -115,5 +117,70 @@ impl<'a> EventHandling<'a> {
 
     pub fn on_key_event<H: Fn(GenericKeyEvent) + 'a>(&mut self, handler: H) {
         self.key_event_fn = Box::new(handler);
+    }
+
+    pub fn handle_winit_event(&mut self, event: winit::event::WindowEvent) {
+        use winit::event::{WindowEvent, MouseButton, KeyEvent};
+
+        match event {
+            WindowEvent::ModifiersChanged(new_modifiers) => self.modifiers = new_modifiers,
+            WindowEvent::CursorMoved {
+                device_id: _,
+                position,
+            } => {
+                let (x, y): (f64, f64) = position.into();
+                let x = x as u32;
+                let y = y as u32;
+                self.handle_cursor_move(x, y);
+            }
+            WindowEvent::MouseInput {
+                device_id: _,
+                state,
+                button,
+            } => {
+                let button = match button {
+                    MouseButton::Left => Some(GenericMouseButton::Left),
+                    MouseButton::Right => Some(GenericMouseButton::Right),
+                    _ => None,
+                };
+                if let Some(button) = button {
+                    self.handle_mouse_btn(state.is_pressed(), button);
+                }
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        text,
+                        state,
+                        logical_key,
+                        ..
+                    },
+                ..
+            } => {
+                if state.is_pressed() {
+                    let modstate = self.modifiers.state();
+                    let mut done = false;
+
+                    if let Some(text) = text.as_ref()
+                        && !(text.is_empty()
+                            || text.chars().nth(0).unwrap().is_ascii_control()
+                            || modstate.control_key()
+                            || modstate.alt_key())
+                    {
+                        self.handle_text_input(text.to_string());
+                        done = true;
+                    }
+
+                    if !done {
+                        self.handle_key_event(GenericKeyEvent {
+                            ctrl: modstate.control_key(),
+                            alt: modstate.alt_key(),
+                            key: logical_key,
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }

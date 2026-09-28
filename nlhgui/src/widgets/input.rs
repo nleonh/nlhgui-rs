@@ -133,24 +133,18 @@ impl<T: Widget> Widget for KeyboardInputWrapper<T> {
         }
     }
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        self.child.build(target, ctx)
+    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+        self.child.build(target, ctx, glb_ctx)
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.glb_ctx = Some(ctx.clone());
-        self.child.hello(ctx)
-    }
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
-        self.child.layout(avl_sp)
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        self.child.layout(avl_sp, glb_ctx)
     }
 }
 
 struct TextFieldContent {
     content: String,
     prg: Cell<Option<textlayout::Paragraph>>,
-    glb_ctx: Option<Rc<GlobalBuildingContext>>,
     cursor_pos: Option<usize>,
     font_size: f32,
 }
@@ -158,7 +152,7 @@ struct TextFieldContent {
 impl Widget for TextFieldContent {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
+    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, _glb_ctx: &Rc<GlobalBuildingContext>) {
         let mut prg = self.prg.take().unwrap();
 
         if let Some(cursor_pos) = &self.cursor_pos {
@@ -186,22 +180,14 @@ impl Widget for TextFieldContent {
         )));
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.glb_ctx = Some(ctx.clone());
-    }
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
-        if avl_sp.width.is_none() {
-            todo!();
-        }
-
-        let width = avl_sp.width.unwrap();
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        let width = avl_sp.width.unwrap_or(500.);
 
         use skia_safe::textlayout::*;
         let mut f = FontCollection::new();
         f.enable_font_fallback();
         f.set_default_font_manager(
-            Some(self.glb_ctx.as_ref().unwrap().fonts().mgr().clone()),
+            Some(glb_ctx.fonts().mgr().clone()),
             "system-ui",
         );
         let mut style = ParagraphStyle::new();
@@ -325,7 +311,6 @@ fn build_text_field_content(
             BoxWidget::new(TextFieldContent {
                 content: cfg.value.clone(),
                 prg: Cell::new(None),
-                glb_ctx: None,
                 cursor_pos: if cfg.cur_down {
                     Some(cfg.insert_at)
                 } else {

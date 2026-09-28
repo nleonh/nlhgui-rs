@@ -378,13 +378,11 @@ impl AvailableSpace {
 }
 
 pub trait Widget {
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext);
+    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>);
 
     fn apply_layout(&mut self, layout: SelectedLayout);
 
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult;
-
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>);
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult;
 }
 
 /// less boilerplate, auto-implements Widget by just calling the child's methods
@@ -401,15 +399,11 @@ where
         self.child_mut().apply_layout(layout)
     }
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        self.child().build(target, ctx)
+    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+        self.child_mut().build(target, ctx, glb_ctx)
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.child_mut().hello(ctx)
-    }
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
-        self.child_mut().layout(avl_sp)
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        self.child_mut().layout(avl_sp, glb_ctx)
     }
 }

@@ -12,11 +12,12 @@ struct MyState {
 fn handle_click(arg: UIBuildArg<MyState>, _: ClickEvent) {
     arg.state_mut().count += 1;
 
-    // The build_ui function is not being called on every frame. Instead, we explicitly state
-    // if a rebuild is necessary.
+    // This tells nlhgui that build_ui has to be invoked again.
     arg.request_rebuild();
 }
 
+// This function is called on every rebuild. Hoever, it is *not* being called each time a new frame
+// is being rendered to the screen.
 fn build_ui(arg: UIBuildArg<MyState>) -> BoxWidget<Container> {
     BoxWidget::new(Container::new([
         Box::new(TextLine::new(format!(
@@ -28,7 +29,6 @@ fn build_ui(arg: UIBuildArg<MyState>) -> BoxWidget<Container> {
             arg.handler(handle_click),
         )),
     ]))
-    .with_padding(BoxPadding::all(10.))
     .with_alignment(Alignment::Center, Alignment::Center)
 }
 
@@ -37,7 +37,9 @@ pub fn run_quickstart() {
     // Prepare your UI state.
     let init_state = MyState { count: 0 };
 
-    // Create a root widget
+    // Create a root widget. ReactiveUI should be the root of every UI that needs to update
+    // itself. You can also wrap multiple instances of ReactiveUI's so that a little change
+    // doesn't trigger a full rebuild.
     let root = ReactiveUI::new(init_state, build_ui);
 
     // Launch the application.

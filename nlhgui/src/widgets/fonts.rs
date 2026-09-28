@@ -38,6 +38,8 @@ impl FontsModule {
 
     fn load_known_sans_font(&mut self) -> bool {
         let fonts = [
+            "Adwaita Sans",
+            "Nimbus Sans",
             "Segoe UI",
             "Arial",
             "San Francisco",

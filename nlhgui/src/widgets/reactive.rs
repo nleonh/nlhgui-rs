@@ -263,29 +263,23 @@ impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for Reactiv
         self.widget.as_mut().unwrap().apply_layout(layout)
     }
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        self.widget.as_ref().unwrap().build(target, ctx)
+    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+        self.widget.as_mut().unwrap().build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        self.inner.args.0.glb_ctx.replace(Some(glb_ctx.clone()));
         while let Some(ev) = self.inner.args.recv_task_event() {
             (*self.handle_ev)(ev, self.inner.to_build_arg());
         }
         if self.inner.args.0.needs_rebuild.get() {
             let tmp = &self.inner.args.0;
-            let tmp2 = tmp.glb_ctx.borrow();
-            let glb_ctx = tmp2.as_ref().unwrap();
             // Don't delete: Helps detecting bugs related to too many redraws
             debug!("Rebuilding reactive UI tree");
-            let mut widget = (*self.build)(self.inner.to_build_arg());
-            widget.hello(glb_ctx);
+            let widget = (*self.build)(self.inner.to_build_arg());
             self.widget = Some(widget);
             tmp.needs_rebuild.set(false);
         }
-        self.widget.as_mut().unwrap().layout(avl_sp)
-    }
-
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        *self.inner.args.0.glb_ctx.borrow_mut() = Some(ctx.clone());
+        self.widget.as_mut().unwrap().layout(avl_sp, glb_ctx)
     }
 }

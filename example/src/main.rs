@@ -9,6 +9,7 @@ mod e2_block_bad;
 mod e3_block_good;
 mod e4_container;
 mod e5_input;
+mod e6_text;
 
 use e0_quickstart::run_quickstart;
 use e1_dev::run_dev;
@@ -16,6 +17,7 @@ use e2_block_bad::run_block_bad;
 use e3_block_good::run_block_good;
 use e4_container::run_containers;
 use e5_input::run_input;
+use e6_text::run_text;
 
 fn help(arg_0: &String) {
     println!(
@@ -31,7 +33,8 @@ Exampless:
   - 2: how you should NOT write blocking Code
   - 3: blocking code
   - 4: containers
-  - 5: text input",
+  - 5: text input
+  - 6: immutable texts",
         arg_0
     );
 }
@@ -73,6 +76,7 @@ fn main() {
         3 => run_block_good(),
         4 => run_containers(),
         5 => run_input(),
+        6 => run_text(),
         wrong => {
             error!("No example {}. Try {} --help.", args[0], wrong);
         }

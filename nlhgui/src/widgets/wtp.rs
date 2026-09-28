@@ -74,15 +74,9 @@ impl LayoutingContext {
 impl WidgetsToPrimitivesInterface {
     pub fn new(root: Box<dyn Widget>, glb_ctx: GlobalBuildingContext) -> Self {
         let glb_ctx = Rc::new(glb_ctx);
-        let mut x = Self { root, glb_ctx };
+        let x = Self { root, glb_ctx };
         debug!("Created wtp interface");
-        x.hello();
-        debug!("Widgets are ready");
         x
-    }
-
-    fn hello(&mut self) {
-        self.root.hello(&self.glb_ctx);
     }
 
     pub fn glb_ctx(&self) -> &GlobalBuildingContext {
@@ -103,7 +97,7 @@ impl WidgetsToPrimitivesInterface {
         let possible_layouts = self.root.layout(AvailableSpace {
             width: Some(width),
             height: Some(height),
-        });
+        }, &self.glb_ctx);
         let selected_layout = match layout_ctx.select_layout_simple(&possible_layouts, true, true) {
             None => {
                 warn!("Layouting failed");
@@ -119,7 +113,7 @@ impl WidgetsToPrimitivesInterface {
             y_begin: 0.,
         };
 
-        self.root.build(&mut result, building_ctx);
+        self.root.build(&mut result, building_ctx, &self.glb_ctx);
 
         self.glb_ctx.after_build();
         result

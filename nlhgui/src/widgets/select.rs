@@ -46,7 +46,7 @@ struct RadioClickField(SelectableItemState);
 impl Widget for RadioClickField {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
-    fn build(&self, target: &mut Vec<Box<dyn crate::primitives::Drawable>>, ctx: BuildingContext) {
+    fn build(&mut self, target: &mut Vec<Box<dyn crate::primitives::Drawable>>, ctx: BuildingContext, _glb_ctx: &Rc<GlobalBuildingContext>) {
         let mut p = PathBuilder::new();
         let x0 = ctx.x_begin;
         let y0 = ctx.y_begin;
@@ -79,9 +79,7 @@ impl Widget for RadioClickField {
         target.push(Box::new(PathDrawable(p.snapshot(), paint)));
     }
 
-    fn hello(&mut self, _ctx: &Rc<GlobalBuildingContext>) {}
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, _glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
         LayoutingResult::fix(20., 20.).checked(avl_sp)
     }
 }
@@ -235,7 +233,7 @@ struct CheckboxButton(SelectableItemState);
 impl Widget for CheckboxButton {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
-    fn build(&self, target: &mut Vec<Box<dyn crate::primitives::Drawable>>, ctx: BuildingContext) {
+    fn build(&mut self, target: &mut Vec<Box<dyn crate::primitives::Drawable>>, ctx: BuildingContext, _glb_ctx: &Rc<GlobalBuildingContext>) {
         let mut p = PathBuilder::new();
         let x0 = ctx.x_begin;
         let y0 = ctx.y_begin;
@@ -262,9 +260,7 @@ impl Widget for CheckboxButton {
         target.push(Box::new(PathDrawable(p.snapshot(), paint)));
     }
 
-    fn hello(&mut self, _ctx: &Rc<GlobalBuildingContext>) {}
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, _glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
         LayoutingResult::fix(20., 20.).checked(avl_sp)
     }
 }

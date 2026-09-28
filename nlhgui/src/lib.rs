@@ -124,7 +124,7 @@ pub struct RenderingBackendPreference(pub(crate) Vec<RenderingBackend>);
 
 impl Default for RenderingBackendPreference {
     fn default() -> Self {
-        Self(vec![RenderingBackend::Vulkan, RenderingBackend::OpenGL])
+        Self(vec![RenderingBackend::OpenGL, RenderingBackend::Vulkan])
     }
 }
 

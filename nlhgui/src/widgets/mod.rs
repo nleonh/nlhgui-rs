@@ -14,7 +14,7 @@ use std::{
 use crate::{
     events::GenericMouseButton,
     maxf,
-    primitives::{self, Point, TextBlobDrawable, create_border_path},
+    primitives::{self, ParagraphDrawable, Point, TextBlobDrawable, create_border_path},
     widgets::{
         ex::{
             AvailableSpace, BuildingContext, CursorEvent, GlobalBuildingContext, LayoutingResult,
@@ -24,7 +24,7 @@ use crate::{
     },
 };
 use primitives::Drawable;
-use skia_safe::{Font, TextBlob};
+use skia_safe::{Font, TextBlob, textlayout};
 
 /// This module allows you to make your UI reactive. This usually includes handling
 /// events (e.g. button click), changing state and requesting UI rebuilds.
@@ -64,7 +64,12 @@ impl Rect {
 }
 
 impl Widget for Rect {
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        _glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let rect = primitives::Rect::new(
             ctx.x_begin,
             ctx.y_begin,
@@ -75,13 +80,11 @@ impl Widget for Rect {
         target.push(Box::new(rect));
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, _glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
         LayoutingResult::fix(self.width, self.height).checked(avl_sp)
     }
 
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
-
-    fn hello(&mut self, _ctx: &Rc<GlobalBuildingContext>) {}
 }
 
 struct ContainerChildLayout {
@@ -133,15 +136,14 @@ impl Container {
 }
 
 impl Widget for Container {
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        for c in &mut self.children {
-            c.hello(ctx);
-        }
-    }
-
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let mut align_count = 0.;
-        for (i, c) in self.children.iter().enumerate() {
+        for (i, c) in self.children.iter_mut().enumerate() {
             let mut ctx = BuildingContext {
                 x_begin: ctx.x_begin,
                 y_begin: ctx.y_begin,
@@ -152,19 +154,19 @@ impl Widget for Container {
                 ctx.y_begin += align_count;
             }
 
-            c.build(target, ctx);
+            c.build(target, ctx, glb_ctx);
             align_count += self.child_layout_data[i].selected_height + self.spacing;
         }
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
         self.child_layout_data.clear();
         let mut minw = 0.;
         let mut minh = 0.;
         let mut maxw = Some(0.);
         let mut maxh = Some(0.);
         for c in &mut self.children {
-            let c_layout = c.layout(avl_sp.clone());
+            let c_layout = c.layout(avl_sp.clone(), glb_ctx);
 
             if self.horizontal {
                 minh = maxf(minh, c_layout.min_height);
@@ -267,7 +269,6 @@ struct CursorReactiveInnerState {
 pub struct CursorReactiveBox<T: Widget> {
     child: T,
     state: Rc<CursorReactiveInnerState>,
-    glb_ctx: Option<Rc<GlobalBuildingContext>>,
     layout: SelectedLayout,
 }
 
@@ -280,7 +281,6 @@ impl<T: Widget> CursorReactiveBox<T> {
                 act_inside: Cell::new(cur_hovered),
                 down_inside: Cell::new(false),
             }),
-            glb_ctx: None,
             layout: SelectedLayout {
                 width: 0.,
                 height: 0.,
@@ -295,13 +295,12 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
         self.child.apply_layout(layout)
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.glb_ctx = Some(ctx.clone());
-        self.child.hello(ctx)
-    }
-
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
-        let glb_ctx = self.glb_ctx.as_ref().unwrap();
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let statec = self.state.clone();
         glb_ctx.register_cursor_sensitive_area(
             ctx.x_begin,
@@ -337,11 +336,11 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                 }
             },
         );
-        self.child.build(target, ctx)
+        self.child.build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
-        self.child.layout(avl_sp)
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        self.child.layout(avl_sp, glb_ctx)
     }
 }
 
@@ -532,7 +531,12 @@ impl<C: Widget> Widget for BoxWidget<C> {
         self.own_layout = Some(layout);
     }
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, mut ctx: BuildingContext) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        mut ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let offset = self.child_offset.as_ref().unwrap();
         ctx.x_begin += offset.0;
         ctx.y_begin += offset.1;
@@ -569,14 +573,11 @@ impl<C: Widget> Widget for BoxWidget<C> {
                 x_begin: ctx.x_begin,
                 y_begin: ctx.y_begin,
             },
+            glb_ctx,
         );
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.child.hello(ctx);
-    }
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
         let border = self.border.as_ref().map(|x| x.0).unwrap_or(0.);
         let own_y = self.padding.bottom + self.padding.top + border * 2.;
         let own_x = self.padding.left + self.padding.right + border * 2.;
@@ -584,7 +585,7 @@ impl<C: Widget> Widget for BoxWidget<C> {
         avl_sp_c.subtract_height(own_y);
         avl_sp_c.subtract_width(own_x);
 
-        let mut layout = self.child.layout(avl_sp_c);
+        let mut layout = self.child.layout(avl_sp_c, glb_ctx);
         self.child_layouting_res = Some(layout.clone());
         layout.min_width += own_x;
         if self.max_own_width {
@@ -612,16 +613,14 @@ impl<C: Widget> Widget for BoxWidget<C> {
 pub struct TextLine {
     data: String,
     blob: Option<TextBlob>,
-    ctx: Option<Rc<GlobalBuildingContext>>,
     offset: Option<(f32, f32)>,
 }
 
 impl TextLine {
-    pub fn new(data: String) -> Self {
+    pub fn new<T: Into<String>>(data: T) -> Self {
         Self {
-            data,
+            data: data.into(),
             blob: None,
-            ctx: None,
             offset: None,
         }
     }
@@ -630,22 +629,23 @@ impl TextLine {
 impl Widget for TextLine {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
-    fn build(&self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        _glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let blob = self.blob.as_ref().unwrap();
         let offset = self.offset.as_ref().unwrap();
         let pos = Point(ctx.x_begin - offset.0, ctx.y_begin - offset.1);
         target.push(Box::new(TextBlobDrawable::new(blob.clone(), pos)));
     }
 
-    fn hello(&mut self, ctx: &Rc<GlobalBuildingContext>) {
-        self.ctx = Some(ctx.clone());
-    }
-
-    fn layout(&mut self, avl_sp: AvailableSpace) -> LayoutingResult {
-        let typeface = self.ctx.as_ref().unwrap().fonts().std_typeface();
+    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+        let typeface = glb_ctx.fonts().std_typeface();
         let font = Font::from_typeface(
             typeface,
-            Some(self.ctx.as_ref().unwrap().builtin_style.std_font_size),
+            Some(glb_ctx.builtin_style.std_font_size),
         );
         let tb = TextBlob::from_str(&self.data, &font).unwrap();
 
@@ -661,5 +661,64 @@ impl Widget for TextLine {
             max_height: Some(height),
         }
         .checked(avl_sp)
+    }
+}
+
+/// Multiple lines of immutable text, no inner styling
+pub struct MultilineText {
+    value: String,
+    prg: Option<textlayout::Paragraph>,
+}
+
+impl MultilineText {
+    pub fn new<T: Into<String>>(text: T) -> Self {
+        Self { value: text.into(), prg: None }
+    }
+}
+
+impl Widget for MultilineText {
+    fn apply_layout(&mut self, _layout: SelectedLayout) {}
+
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        _glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
+        target.push(Box::new(ParagraphDrawable(
+            self.prg.take().unwrap(),
+            Point(ctx.x_begin, ctx.y_begin),
+        )));
+    }
+
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
+        let width = avl_sp.width.unwrap_or(500.);
+
+        use skia_safe::textlayout::*;
+        let mut f = FontCollection::new();
+        f.enable_font_fallback();
+        f.set_default_font_manager(Some(glb_ctx.fonts().mgr().clone()), "system-ui");
+        let mut style = ParagraphStyle::new();
+        style.set_height(100.);
+        let mut builder = ParagraphBuilder::new(&style, f);
+
+        let mut text_style = TextStyle::new();
+        text_style.set_font_size(glb_ctx.builtin_style.std_font_size);
+        text_style.set_color(skia_safe::Color::from_rgb(0, 0, 0));
+        builder.push_style(&text_style);
+
+        builder.add_text(&self.value);
+
+        let mut prg = builder.build();
+        prg.layout(width);
+        let height = prg.height();
+
+        self.prg = Some(prg);
+
+        LayoutingResult::fix(width, height).checked(avl_sp)
     }
 }

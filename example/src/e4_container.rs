@@ -2,7 +2,7 @@
 // See example/UNLICENSE.
 
 use nlhgui::{
-    LaunchConfig,
+    Launcher,
     colors::{GREEN, RED},
     widgets::{Container, Rect},
 };
@@ -30,7 +30,7 @@ pub fn run_containers() {
 
     main_container.add(vert_container);
 
-    LaunchConfig::default()
+    Launcher::default()
         .with_title(file!())
         .launch(main_container);
 }

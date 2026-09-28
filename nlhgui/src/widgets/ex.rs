@@ -7,9 +7,7 @@
 */
 
 use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{
+    cell::{RefCell}, rc::Rc, sync::{
         Arc,
         atomic::{self, AtomicBool},
     },
@@ -20,9 +18,7 @@ use skia_safe::Color4f;
 use winit::keyboard::NamedKey;
 
 use crate::{
-    events::{GenericKeyEvent, GenericMouseButton},
-    primitives::{Drawable, Point},
-    widgets::fonts::FontsModule,
+    events::{GenericKeyEvent, GenericMouseButton}, primitives::{Drawable, Point}, widgets::fonts::FontsModule, wnd::EventLoopAwaker,
 };
 
 #[derive(Clone, Debug)]
@@ -116,13 +112,23 @@ pub struct BuiltinStyleData {
     pub dyn_act_col: Color4f,
 }
 
+struct NoEventLoopAwaker;
+
+impl EventLoopAwaker for NoEventLoopAwaker {
+    fn request_redraw(&self) {
+        warn!("dummy el awaker called")
+    }
+}
+
 pub struct GlobalRebuildTrigger {
     rebuild_flag: Arc<AtomicBool>,
+    el_awaker: Arc<dyn EventLoopAwaker + Send + Sync>,
 }
 
 impl GlobalRebuildTrigger {
     pub fn trigger_rebuild(&self) {
         self.rebuild_flag.store(true, atomic::Ordering::Relaxed);
+        self.el_awaker.request_redraw();
     }
 }
 
@@ -130,6 +136,7 @@ pub struct GlobalBuildingContext {
     pub(crate) data: RefCell<GlobalBuildingContextData>,
     pub(crate) fonts_mod: Option<FontsModule>,
     pub(crate) need_rebuild: Arc<AtomicBool>,
+    pub(crate) el_awaker: Arc<dyn Send + EventLoopAwaker + Sync>,
     pub builtin_style: BuiltinStyleData,
 }
 
@@ -137,6 +144,7 @@ impl Default for GlobalBuildingContext {
     fn default() -> Self {
         debug!("Creating global building context");
         Self {
+            el_awaker: Arc::new(NoEventLoopAwaker),
             need_rebuild: Arc::new(AtomicBool::new(false)),
             fonts_mod: Some(FontsModule::create()),
             data: RefCell::new(GlobalBuildingContextData {
@@ -175,13 +183,18 @@ impl GlobalBuildingContext {
         self.need_rebuild.store(true, atomic::Ordering::Relaxed);
     }
 
-    pub fn create_global_rebuild_trigger(&self) -> GlobalRebuildTrigger {
+    pub(crate) fn create_global_rebuild_trigger(&self) -> GlobalRebuildTrigger {
         GlobalRebuildTrigger {
             rebuild_flag: self.need_rebuild.clone(),
+            el_awaker: self.el_awaker.clone()
         }
     }
+    
+    pub(crate) fn set_awaker(&mut self, awaker: Arc<dyn Send + Sync + EventLoopAwaker>) {
+        self.el_awaker = awaker;
+    }
 
-    pub fn with_tokio_rt(self, rt: tokio::runtime::Runtime) -> Self {
+    pub(crate) fn with_tokio_rt(self, rt: tokio::runtime::Runtime) -> Self {
         self.data.borrow_mut().concurrency = ConcurrencySolution::Tokio(rt);
         self
     }

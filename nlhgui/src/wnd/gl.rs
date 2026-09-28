@@ -40,7 +40,7 @@ use std::{
     error::Error,
     ffi::CString,
     num::NonZeroU32,
-    time::{Duration, Instant},
+    sync::Arc,
 };
 
 use gl::types::*;
@@ -57,7 +57,7 @@ use raw_window_handle::HasWindowHandle;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Window, WindowAttributes},
 };
 
@@ -66,7 +66,10 @@ use skia_safe::{
     gpu::{self, SurfaceOrigin, backend_render_targets, gl::FramebufferInfo},
 };
 
-use crate::{events::EventHandling, wnd::WindowBackend};
+use crate::{
+    events::EventHandling,
+    wnd::{CustomWinitEvent, EventLoopAwaker, WindowBackend, WinitElAwaker},
+};
 
 struct App<'a> {
     gel: EventHandling<'a>,
@@ -74,11 +77,10 @@ struct App<'a> {
     fb_info: FramebufferInfo,
     num_samples: usize,
     stencil_size: usize,
-    previous_frame_start: Instant,
 }
 
 struct GlWindowBackend<'a> {
-    el: EventLoop<()>,
+    el: EventLoop<CustomWinitEvent>,
     app: App<'a>,
 }
 
@@ -98,7 +100,7 @@ impl Drop for OpenGlStuff {
 }
 
 fn create_config(
-    el: &EventLoop<()>,
+    el: &EventLoop<CustomWinitEvent>,
     window_attributes: WindowAttributes,
 ) -> Result<(Window, glutin::config::Config), Box<dyn Error>> {
     let template = ConfigTemplateBuilder::new();
@@ -162,9 +164,15 @@ impl<'a> super::WindowBackend<'a> for GlWindowBackend<'a> {
     fn use_events(&mut self, events: EventHandling<'a>) {
         self.app.gel = events;
     }
+
+    fn get_el_awaker(&self) -> Arc<dyn Send + Sync + EventLoopAwaker> {
+        Arc::new(WinitElAwaker {
+            proxy: self.el.create_proxy(),
+        })
+    }
 }
 
-impl<'a> ApplicationHandler for App<'a> {
+impl<'a> ApplicationHandler<CustomWinitEvent> for App<'a> {
     fn resumed(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {}
 
     fn new_events(
@@ -177,6 +185,12 @@ impl<'a> ApplicationHandler for App<'a> {
         }
     }
 
+    fn user_event(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, event: CustomWinitEvent) {
+        match event {
+            CustomWinitEvent::Redraw => self.env.window.request_redraw(),
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -184,7 +198,6 @@ impl<'a> ApplicationHandler for App<'a> {
         event: WindowEvent,
     ) {
         let mut draw_frame = false;
-        let frame_start = Instant::now();
 
         match event {
             WindowEvent::CloseRequested => {
@@ -216,13 +229,6 @@ impl<'a> ApplicationHandler for App<'a> {
             x => self.gel.handle_winit_event(x),
         }
 
-        let expected_frame_length_seconds = 1.0 / 10.0;
-        let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
-
-        if frame_start - self.previous_frame_start > frame_duration {
-            draw_frame = true;
-            self.previous_frame_start = frame_start;
-        }
         if draw_frame {
             let canvas = self.env.surface.canvas();
 
@@ -238,15 +244,11 @@ impl<'a> ApplicationHandler for App<'a> {
         if self.gel.wants_redraw() {
             self.env.window.request_redraw();
         }
-
-        event_loop.set_control_flow(ControlFlow::WaitUntil(
-            self.previous_frame_start + frame_duration,
-        ));
     }
 }
 
 pub fn create_gl_window(title: &String) -> Result<Box<dyn WindowBackend<'static>>, Box<dyn Error>> {
-    let el = EventLoop::new()?;
+    let el = EventLoop::<CustomWinitEvent>::with_user_event().build()?;
 
     let window_attributes = WindowAttributes::default().with_title(title);
 
@@ -345,7 +347,6 @@ pub fn create_gl_window(title: &String) -> Result<Box<dyn WindowBackend<'static>
         fb_info,
         num_samples,
         stencil_size,
-        previous_frame_start: Instant::now(),
     };
     Ok(Box::new(GlWindowBackend { app, el }))
 }

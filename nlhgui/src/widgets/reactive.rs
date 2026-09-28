@@ -163,17 +163,48 @@ type HandleEvFnT<E, S, C> = dyn Fn(E, UIBuildArg<S, C, E>);
 /// # Reactive UI
 /// Example:
 /// ```
-/// use nlhgui::{*, widgets::{reactive::*, *}};
-///
-/// struct MyUIState {}
-///
-/// fn build_ui(arg: UIBuildArg<MyUIState>) -> Container {
-///     Container::new([])
+/// use nlhgui::Launcher;
+/// use nlhgui::widgets::reactive::*;
+/// use nlhgui::widgets::*;
+/// 
+/// struct MyState {
+///     count: u32,
 /// }
-///
+/// 
+/// fn handle_click(arg: UIBuildArg<MyState>, _: ClickEvent) {
+///     arg.state_mut().count += 1;
+/// 
+///     // The build_ui function is not being called on every frame. Instead, we explicitly state
+///     // if a rebuild is necessary.
+///     arg.request_rebuild();
+/// }
+/// 
+/// fn build_ui(arg: UIBuildArg<MyState>) -> BoxWidget<Container> {
+///     BoxWidget::new(Container::new([
+///         Box::new(TextLine::new(format!(
+///             "Hello there! Count: {}",
+///             arg.state().count
+///         ))),
+///         Box::new(TextButton::new(
+///             "Click".to_string(),
+///             arg.handler(handle_click),
+///         )),
+///     ]))
+///     .with_padding(BoxPadding::all(10.))
+///     .with_alignment(Alignment::Center, Alignment::Center)
+/// }
+/// 
+/// // This would be your main function.
 /// fn main() {
-///     let root = ReactiveUI::new(MyUIState {}, build_ui);
-///     LaunchConfig::default()
+///     // Prepare your UI state.
+///     let init_state = MyState { count: 0 };
+/// 
+///     // Create a root widget
+///     let root = ReactiveUI::new(init_state, build_ui);
+/// 
+///     // Launch the application.
+///     Launcher::default()
+///         .with_title("quickstart example")
 ///         .launch(root);
 /// }
 /// ```

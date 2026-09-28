@@ -10,7 +10,7 @@
 //! Cross-platform desktop GUI development using pure Rust \
 //! Example:
 //! ```
-//! use nlhgui::LaunchConfig;
+//! use nlhgui::Launcher;
 //! use nlhgui::widgets::reactive::*;
 //! use nlhgui::widgets::*;
 //!
@@ -49,7 +49,7 @@
 //!     let root = ReactiveUI::new(init_state, build_ui);
 //!
 //!     // Launch the application.
-//!     LaunchConfig::default()
+//!     Launcher::default()
 //!         .with_title("simple example")
 //!         .launch(root);
 //! }
@@ -112,21 +112,47 @@ struct Launched {
     wtp: WidgetsToPrimitivesInterface,
 }
 
+/// All possible rendering backends
+#[derive(Copy, Clone, Debug)]
+pub enum RenderingBackend {
+    Vulkan,
+    OpenGL,
+}
+
+/// See [`Launcher::with_rendering_backend_preference`] on how to use this.
+pub struct RenderingBackendPreference(pub(crate) Vec<RenderingBackend>);
+
+impl Default for RenderingBackendPreference {
+    fn default() -> Self {
+        Self(vec![RenderingBackend::Vulkan, RenderingBackend::OpenGL])
+    }
+}
+
+impl RenderingBackendPreference {
+    /// Which backend to try first. This is usually not necessary.
+    /// [`Launcher`] uses [`RenderingBackendPreference::default`] which should be fine.
+    /// Any backend that is not in the list won't be used.
+    pub fn custom_order<const C: usize>(order: [RenderingBackend; C]) -> Self {
+        assert!(C != 0);
+        Self(order.to_vec())
+    }
+}
+
 impl Launched {
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.wtp.resize(width as f32, height as f32);
-        self.rebuild();
+    pub fn request_rebuild(&self) {
+        self.wtp.glb_ctx().request_rebuild();
     }
 
     pub fn render(&mut self, canvas: &Canvas) {
+        let bls = canvas.base_layer_size();
         if self.wtp.wants_rebuild() {
-            self.rebuild();
+            self.rebuild(bls.width as f32, bls.height as f32);
         }
         self.renderer.render(canvas);
     }
 
-    pub fn rebuild(&mut self) {
-        let render_items = self.wtp.build();
+    fn rebuild(&mut self, width: f32, height: f32) {
+        let render_items = self.wtp.build(width, height);
         self.renderer.replace_items(render_items);
     }
 
@@ -136,25 +162,43 @@ impl Launched {
 }
 
 /// This configuration struct is needed for launching an application.
-/// Create it using [`LaunchConfig::default`]. Call [`LaunchConfig::launch`] after you are
+/// Create it using [`Launcher::default`]. Call [`Launcher::launch`] after you are
 /// done configuring.
-pub struct LaunchConfig {
+pub struct Launcher {
     wnd_title: String,
+    backend: RenderingBackendPreference,
 }
 
-impl Default for LaunchConfig {
+impl Default for Launcher {
     fn default() -> Self {
         Self {
             wnd_title: String::from("nlhgui window"),
+            backend: RenderingBackendPreference::default(),
         }
     }
 }
 
-impl LaunchConfig {
+impl Launcher {
     /// changes the title, e.g.
-    /// `LaunchConfig::default().with_title("custom title").launch(...)"`
+    /// `Launcher::default().with_title("custom title").launch(...)"`
     pub fn with_title(mut self, title: &str) -> Self {
         self.wnd_title = title.to_string();
+        self
+    }
+
+    /// Changes the backend order, e.g. try OpenGL before Vulkan like that:
+    /// ```
+    /// use nlhgui::*;
+    ///
+    /// let launcher = Launcher::default().with_rendering_backend_preference(
+    ///     RenderingBackendPreference::custom_order([RenderingBackend::OpenGL, RenderingBackend::Vulkan]));
+    /// // Now, create widget root and call `launcher.launch`
+    /// ```
+    pub fn with_rendering_backend_preference(
+        mut self,
+        new_config: RenderingBackendPreference,
+    ) -> Self {
+        self.backend = new_config;
         self
     }
 
@@ -167,19 +211,17 @@ impl LaunchConfig {
     pub fn launch<R: Widget + 'static>(self, root: R) {
         debug!("Launching application");
 
-        let mut window = wnd::create_window(&self.wnd_title).unwrap();
+        let mut window = wnd::create_window(&self.wnd_title, &self.backend).unwrap();
 
-        let (width, height) = window.get_size();
-        let wtp = widgets::wtp::WidgetsToPrimitivesInterface::new(
-            width as f32,
-            height as f32,
-            Box::new(root),
-        );
+        let mut glb_ctx =
+            GlobalBuildingContext::default().with_tokio_rt(tokio::runtime::Runtime::new().unwrap());
+        glb_ctx.set_awaker(window.get_el_awaker());
+
+        let wtp = widgets::wtp::WidgetsToPrimitivesInterface::new(Box::new(root), glb_ctx);
 
         let renderer = renderer::Renderer::create();
 
-        let mut state = Launched { renderer, wtp };
-        state.rebuild();
+        let state = Launched { renderer, wtp };
 
         let stater = Rc::new(RefCell::new(state));
         let stater1 = stater.clone();
@@ -194,8 +236,8 @@ impl LaunchConfig {
         events.on_render(move |canvas| {
             stater.borrow_mut().render(canvas);
         });
-        events.on_resize(move |width, height| {
-            stater1.borrow_mut().resize(width, height);
+        events.on_resize(move |_, _| {
+            stater1.borrow().request_rebuild();
         });
         events.on_cursor_move(move |x, y| {
             stater2

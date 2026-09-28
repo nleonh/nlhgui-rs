@@ -3,7 +3,7 @@
 
 use std::rc::Rc;
 
-use nlhgui::LaunchConfig;
+use nlhgui::Launcher;
 use nlhgui::widgets::reactive::{ReactiveUI, UIBuildArg};
 use nlhgui::widgets::{
     Checkbox, CheckboxController, Container, RadioButtonGroup, RadioButtonGroupCtrl, TextField,
@@ -59,5 +59,5 @@ pub fn run_input() {
         checkbox_ctrl: Rc::new(checkbox_ctrl),
     };
     let root = ReactiveUI::new(state, build_ui);
-    LaunchConfig::default().with_title(file!()).launch(root);
+    Launcher::default().with_title(file!()).launch(root);
 }

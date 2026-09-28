@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use nlhgui::{
-    LaunchConfig,
+    Launcher,
     colors::BLACK,
     widgets::{
         Alignment, BoxBorder, BoxPadding, BoxWidget, Checkbox, CheckboxController, ClickEvent,
@@ -55,5 +55,5 @@ pub fn run_dev() {
         },
         build_ui,
     );
-    LaunchConfig::default().with_title(file!()).launch(root);
+    Launcher::default().with_title(file!()).launch(root);
 }

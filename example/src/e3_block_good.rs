@@ -4,7 +4,7 @@
 use std::{f64::consts::PI, thread::sleep, time::Duration};
 
 use nlhgui::{
-    LaunchConfig,
+    Launcher,
     widgets::{
         Container, TextButton, TextLine,
         reactive::{ConcurrentTaskArg, ReactiveUI, UIBuildArg},
@@ -76,5 +76,5 @@ pub fn run_block_good() {
         calc: CalcState::NotStarted,
     };
     let root = ReactiveUI::new(init_state, build_ui).with_event_handler(handle_event);
-    LaunchConfig::default().with_title(file!()).launch(root);
+    Launcher::default().with_title(file!()).launch(root);
 }

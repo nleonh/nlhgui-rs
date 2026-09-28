@@ -6,7 +6,7 @@ This library is supposed to help you build powerful cross-platform GUI applicati
 
 ## Example
 ```rust
-use nlhgui::LaunchConfig;
+use nlhgui::Launcher;
 use nlhgui::widgets::reactive::*;
 use nlhgui::widgets::*;
 
@@ -45,7 +45,7 @@ fn main() {
     let root = ReactiveUI::new(init_state, build_ui);
 
     // Launch the application.
-    LaunchConfig::default()
+    Launcher::default()
         .with_title("simple example")
         .launch(root);
 }

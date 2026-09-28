@@ -36,12 +36,8 @@
     SOFTWARE.
 */
 
-use log::{debug, error};
-use std::{
-    error::Error,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use log::{debug, error, info};
+use std::{error::Error, sync::Arc};
 use vulkano::{
     VulkanLibrary,
     device::{
@@ -59,13 +55,16 @@ use vulkano::{
     swapchain::{self, Surface},
 };
 
-use crate::{events::EventHandling, wnd::WindowBackend};
+use crate::{
+    events::EventHandling,
+    wnd::{CustomWinitEvent, EventLoopAwaker, WindowBackend, WinitElAwaker},
+};
 
 use winit::{
     application::ApplicationHandler,
     dpi::{LogicalSize, PhysicalSize},
     event::WindowEvent,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
 };
 
@@ -86,18 +85,13 @@ use skia_safe::{
     gpu::{self, backend_render_targets, direct_contexts, surfaces, vk},
 };
 
-#[derive(Default)]
 pub struct VulkanRenderContext {
-    pub queue: Option<Arc<Queue>>,
-    pub validate: bool,
+    queue: Option<Arc<Queue>>,
 }
 
 impl VulkanRenderContext {
-    pub fn new(validate: bool) -> Self {
-        Self {
-            queue: None,
-            validate,
-        }
+    pub fn new() -> Self {
+        Self { queue: None }
     }
 
     pub fn renderer_for_window(
@@ -106,7 +100,7 @@ impl VulkanRenderContext {
         window: Arc<Window>,
     ) -> Option<VulkanRenderer> {
         // lazily set up a shared instance, device, and queue to use for all subsequent renderers
-        let validate = self.validate;
+        let validate = false;
         let queue = self
             .queue
             .get_or_insert_with(|| Self::shared_queue(event_loop, window.clone(), validate));
@@ -227,7 +221,7 @@ impl VulkanRenderContext {
             .expect("No suitable physical device found");
 
         // Print out the device we selected
-        println!(
+        debug!(
             "Using device: {} (type: {:?})",
             physical_device.properties().device_name,
             physical_device.properties().device_type,
@@ -309,7 +303,7 @@ impl VulkanRenderContext {
                     ..DebugUtilsMessengerCreateInfo::user_callback(unsafe {
                         DebugUtilsMessengerCallback::new(
                             |message_severity, message_type, callback_data| {
-                                println!(
+                                info!(
                                     "[vulkan {:?} {:?}] {}",
                                     message_severity, message_type, callback_data.message
                                 );
@@ -317,12 +311,12 @@ impl VulkanRenderContext {
                         )
                     })
                 });
-                println!("Vulkan validation enabled for vulkan-window example");
+                debug!("Vulkan validation enabled for vulkan-window example");
             } else {
-                eprintln!("Vulkan validation requested, but VK_EXT_debug_utils is not available");
+                error!("Vulkan validation requested, but VK_EXT_debug_utils is not available");
             }
         } else {
-            eprintln!(
+            error!(
                 "Vulkan validation requested, but '{}' is not available on this system",
                 VALIDATION_LAYER,
             );
@@ -373,7 +367,7 @@ impl VulkanRenderer {
         let library = instance.library();
         let backend_max_api_version = {
             let api_version = device.api_version();
-            println!("Vulkan API version {}", api_version);
+            debug!("Vulkan API version {}", api_version);
             (
                 api_version.major as usize,
                 api_version.minor as usize,
@@ -513,7 +507,7 @@ impl VulkanRenderer {
                 }
                 .map(|f| f as _)
                 .unwrap_or_else(|| {
-                    println!("Vulkan: failed to resolve {}", gpo.name().to_str().unwrap());
+                    error!("Vulkan: failed to resolve {}", gpo.name().to_str().unwrap());
                     ptr::null()
                 })
             };
@@ -758,31 +752,26 @@ struct App<'a> {
     render_ctx: VulkanRenderContext, // the shared vulkan device, queue, etc.
     renderer: Option<VulkanRenderer>, // the window-specific skia <-> vulkan bridge
     gel: EventHandling<'a>,
-    previous_frame_start: Instant,
+    title: String,
 }
 
 impl<'a> App<'a> {
-    fn new() -> Self {
-        /*let validate = std::env::args().any(|arg| arg == "--validate");
-        if validate {
-            println!("Vulkan validation requested via --validate");
-        }*/
-
+    fn new(title: String) -> Self {
         App {
-            render_ctx: VulkanRenderContext::new(false),
+            render_ctx: VulkanRenderContext::new(),
+            title,
             renderer: None,
             gel: EventHandling::new(),
-            previous_frame_start: Instant::now(),
         }
     }
 }
 
-impl<'a> ApplicationHandler for App<'a> {
+impl<'a> ApplicationHandler<CustomWinitEvent> for App<'a> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // since the renderer needs to hold onto a reference to the window, we wrap it in an Arc
         let window = Arc::new(
             event_loop
-                .create_window(Window::default_attributes())
+                .create_window(Window::default_attributes().with_title(&self.title))
                 .unwrap(),
         );
 
@@ -796,13 +785,18 @@ impl<'a> ApplicationHandler for App<'a> {
         }
     }
 
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: CustomWinitEvent) {
+        match event {
+            CustomWinitEvent::Redraw => self.renderer.as_ref().unwrap().window.request_redraw(),
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        let frame_start = Instant::now();
         let mut draw_frame = false;
         match event {
             WindowEvent::CloseRequested => {
@@ -829,14 +823,6 @@ impl<'a> ApplicationHandler for App<'a> {
             renderer.window.request_redraw();
         }
 
-        let expected_frame_length_seconds = 1.0 / 10.0;
-        let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
-
-        if frame_start - self.previous_frame_start > frame_duration {
-            draw_frame = true;
-            self.previous_frame_start = frame_start;
-        }
-
         if draw_frame && let Some(renderer) = self.renderer.as_mut() {
             // The swapchain (which manages presentable images and update timing) needs
             // to be cleaned up/validated in between redraws.
@@ -847,28 +833,26 @@ impl<'a> ApplicationHandler for App<'a> {
                 self.gel.render(canvas);
             });
         }
-
-        event_loop.set_control_flow(ControlFlow::WaitUntil(
-            self.previous_frame_start + frame_duration,
-        ));
     }
 }
 
 pub struct VkWindowBackend<'a> {
+    el: EventLoop<CustomWinitEvent>,
     app: App<'a>,
 }
 
 impl<'a> VkWindowBackend<'a> {
-    pub fn new() -> Self {
-        Self { app: App::new() }
+    pub fn new(title: String) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            app: App::new(title),
+            el: EventLoop::with_user_event().build()?,
+        })
     }
 }
 
 impl<'a> WindowBackend<'a> for VkWindowBackend<'a> {
     fn run(mut self: Box<Self>) {
-        let event_loop = EventLoop::new().unwrap();
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
-        event_loop.run_app(&mut self.app).unwrap();
+        self.el.run_app(&mut self.app).unwrap();
     }
 
     fn get_size(&self) -> (u32, u32) {
@@ -878,8 +862,14 @@ impl<'a> WindowBackend<'a> for VkWindowBackend<'a> {
     fn use_events(&mut self, events: crate::events::EventHandling<'a>) {
         self.app.gel = events;
     }
+
+    fn get_el_awaker(&self) -> Arc<dyn Send + Sync + EventLoopAwaker> {
+        Arc::new(WinitElAwaker {
+            proxy: self.el.create_proxy(),
+        })
+    }
 }
 
-pub fn create_vk_window() -> Result<Box<dyn WindowBackend<'static>>, Box<dyn Error>> {
-    Ok(Box::new(VkWindowBackend::new()))
+pub fn create_vk_window(title: String) -> Result<Box<dyn WindowBackend<'static>>, Box<dyn Error>> {
+    Ok(Box::new(VkWindowBackend::new(title)?))
 }

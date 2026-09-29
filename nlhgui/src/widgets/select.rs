@@ -104,6 +104,7 @@ fn build_radio_click_field(
                 arg.state_mut().hovered = None;
                 arg.request_rebuild();
             })),
+            on_mv_inside: None,
         },
         state.hovered,
     )
@@ -286,6 +287,7 @@ fn build_checkbox(arg: UIBuildArg<CheckboxState, Rc<CheckboxController>>) -> Con
                     arg.state_mut().hovered = false;
                     arg.request_rebuild();
                 }),
+                on_mv_inside: None,
             },
             arg.state().hovered,
         )),

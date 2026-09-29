@@ -64,7 +64,9 @@ impl<T> ConcurrentTaskArg<T> {
 /// state (`state_mut()`) you usually also want to request a UI rebuild using
 /// `request_rebuild()`.
 #[derive(Clone)]
-pub struct UIBuildArg<S, C = (), E = ()>(Rc<UIBuildArgsData<S, C, E>>);
+pub struct UIBuildArg<State, Config = (), Events = ()>(
+    Rc<UIBuildArgsData<State, Config, Events>>,
+);
 
 impl<S: 'static, C: 'static, E: 'static> UIBuildArg<S, C, E> {
     pub fn handler<CallbackArgument, F: 'static + Fn(Self, CallbackArgument)>(
@@ -135,9 +137,8 @@ impl<S: 'static, C: 'static, E: 'static> UIBuildArg<S, C, E> {
     }
 }
 
-struct ReactiveUIImpl<StateDataType, ConfigDataType, EventType> {
-    // build: Box<BuildType<StateDataType, WidgetType>>,
-    args: UIBuildArg<StateDataType, ConfigDataType, EventType>,
+struct ReactiveUIImpl<S, C, E> {
+    args: UIBuildArg<S, C, E>,
 }
 
 impl<S, C, E> ReactiveUIImpl<S, C, E> {
@@ -166,19 +167,19 @@ type HandleEvFnT<E, S, C> = dyn Fn(E, UIBuildArg<S, C, E>);
 /// use nlhgui::Launcher;
 /// use nlhgui::widgets::reactive::*;
 /// use nlhgui::widgets::*;
-/// 
+///
 /// struct MyState {
 ///     count: u32,
 /// }
-/// 
+///
 /// fn handle_click(arg: UIBuildArg<MyState>, _: ClickEvent) {
 ///     arg.state_mut().count += 1;
-/// 
+///
 ///     // The build_ui function is not being called on every frame. Instead, we explicitly state
 ///     // if a rebuild is necessary.
 ///     arg.request_rebuild();
 /// }
-/// 
+///
 /// fn build_ui(arg: UIBuildArg<MyState>) -> BoxWidget<Container> {
 ///     BoxWidget::new(Container::new([
 ///         Box::new(TextLine::new(format!(
@@ -193,15 +194,15 @@ type HandleEvFnT<E, S, C> = dyn Fn(E, UIBuildArg<S, C, E>);
 ///     .with_padding(BoxPadding::all(10.))
 ///     .with_alignment(Alignment::Center, Alignment::Center)
 /// }
-/// 
+///
 /// // This would be your main function.
 /// fn main() {
 ///     // Prepare your UI state.
 ///     let init_state = MyState { count: 0 };
-/// 
+///
 ///     // Create a root widget
 ///     let root = ReactiveUI::new(init_state, build_ui);
-/// 
+///
 ///     // Launch the application.
 ///     Launcher::default()
 ///         .with_title("quickstart example")
@@ -210,9 +211,9 @@ type HandleEvFnT<E, S, C> = dyn Fn(E, UIBuildArg<S, C, E>);
 /// ```
 pub struct ReactiveUI<StateType, W: Widget, ConfigType = (), EventType = ()> {
     inner: ReactiveUIImpl<StateType, ConfigType, EventType>,
-    widget: Option<W>,
     build: Box<UIBuildType<StateType, W, ConfigType, EventType>>,
     handle_ev: Box<HandleEvFnT<EventType, StateType, ConfigType>>,
+    widget: Option<W>,
 }
 
 impl<S, W: Widget, E> ReactiveUI<S, W, (), E> {
@@ -263,11 +264,20 @@ impl<S: 'static, C: 'static, W: 'static + Widget, E: 'static> Widget for Reactiv
         self.widget.as_mut().unwrap().apply_layout(layout)
     }
 
-    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         self.widget.as_mut().unwrap().build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         self.inner.args.0.glb_ctx.replace(Some(glb_ctx.clone()));
         while let Some(ev) = self.inner.args.recv_task_event() {
             (*self.handle_ev)(ev, self.inner.to_build_arg());

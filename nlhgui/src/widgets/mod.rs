@@ -247,14 +247,35 @@ impl WrapperWidget for Box<dyn Widget> {
     }
 }
 
-/// Currently, this is just a placeholder
-pub struct ClickEvent {}
+/// Usually relative to box borders
+#[derive(Debug, Copy, Clone)]
+pub struct CursorPosition(pub f32, pub f32);
+
+/// Used by [`CursorReactiveBox`]
+pub struct ClickEvent {
+    pub pos: CursorPosition
+}
+
+/// Used by [`CursorReactiveBox`]
+pub struct HoverEvent {
+}
+
+/// Used by [`CursorReactiveBox`]
+pub struct HoverEndEvent {
+
+}
+/// Used by [`CursorReactiveBox`]
+
+pub struct MoveInsideEvent {
+    pub pos: CursorPosition
+}
 
 /// Callback functions for [`CursorReactiveBox`]
 pub struct CursorReactiveBoxHandlers {
-    pub on_hover: Box<dyn Fn(())>,
-    pub on_hover_end: Box<dyn Fn(())>,
+    pub on_hover: Box<dyn Fn(HoverEvent)>,
+    pub on_hover_end: Box<dyn Fn(HoverEndEvent)>,
     pub on_clicked: Box<dyn Fn(ClickEvent)>,
+    pub on_mv_inside: Option<Box<dyn Fn(MoveInsideEvent)>>
 }
 
 struct CursorReactiveInnerState {
@@ -263,6 +284,7 @@ struct CursorReactiveInnerState {
     act_inside: Cell<bool>,
     /// `true`, if down was emitted when hovering inside
     down_inside: Cell<bool>,
+    pos: Cell<CursorPosition>,
 }
 
 /// In most cases, [`TextButton`] or [`Button<T>`] will get the job done.
@@ -280,6 +302,7 @@ impl<T: Widget> CursorReactiveBox<T> {
                 handlers,
                 act_inside: Cell::new(cur_hovered),
                 down_inside: Cell::new(false),
+                pos: Cell::new(CursorPosition(0., 0.))
             }),
             layout: SelectedLayout {
                 width: 0.,
@@ -312,13 +335,13 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                     // Important: If a rebuild is triggered by a handler, this CursorEvent
                     // might be emitted multiple times. maybe TODO
                     if !statec.act_inside.get() {
-                        (*statec.handlers.on_hover)(())
+                        (*statec.handlers.on_hover)(HoverEvent {  })
                     }
                 }
                 CursorEvent::Left => {
                     statec.act_inside.set(false);
                     statec.down_inside.set(false);
-                    (*statec.handlers.on_hover_end)(())
+                    (*statec.handlers.on_hover_end)(HoverEndEvent {  })
                 }
                 CursorEvent::Down(b) => {
                     if *b == GenericMouseButton::Left {
@@ -331,7 +354,14 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                         && statec.act_inside.get()
                         && statec.down_inside.get()
                     {
-                        (*statec.handlers.on_clicked)(ClickEvent {});
+                        (*statec.handlers.on_clicked)(ClickEvent {pos: statec.pos.get()});
+                    }
+                }
+                CursorEvent::MoveInside(x, y) => {
+                    if let Some(h) = &statec.handlers.on_mv_inside {
+                        let pos = CursorPosition(x, y);
+                        statec.pos.set(pos);
+                        (**h)(MoveInsideEvent { pos });
                     }
                 }
             },

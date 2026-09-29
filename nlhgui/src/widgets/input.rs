@@ -24,7 +24,7 @@ use super::*;
 /// Usually, you just need [`TextButton`].
 pub type TextButtonContent = BoxWidget<TextLine>;
 
-fn on_btn_hover(p: UIBuildArg<TextButtonState>, _: ()) {
+fn on_btn_hover(p: UIBuildArg<TextButtonState>, _: HoverEvent) {
     p.state_mut().btn_state.hovered = true;
     p.request_rebuild();
 }
@@ -33,7 +33,7 @@ fn on_btn_click(p: UIBuildArg<TextButtonState>, c: ClickEvent) {
     (*p.state().btn_state.click_handler)(c);
 }
 
-fn on_btn_hover_stop(p: UIBuildArg<TextButtonState>, _: ()) {
+fn on_btn_hover_stop(p: UIBuildArg<TextButtonState>, _: HoverEndEvent) {
     p.state_mut().btn_state.hovered = false;
     p.request_rebuild();
 }
@@ -55,6 +55,7 @@ fn build_txt_button(p: UIBuildArg<TextButtonState>) -> CursorReactiveBox<TextBut
             on_clicked: p.handler(on_btn_click),
             on_hover: p.handler(on_btn_hover),
             on_hover_end: p.handler(on_btn_hover_stop),
+            on_mv_inside: None
         },
         hovered,
     );
@@ -99,7 +100,6 @@ impl<C: 'static + Widget> WrapperWidget for Button<C> {
 struct KeyboardInputWrapper<C: Widget> {
     child: C,
     want_listen: bool,
-    glb_ctx: Option<Rc<GlobalBuildingContext>>,
     handler: Rc<dyn Fn(TextReceiverEvent) + 'static>,
 }
 
@@ -112,7 +112,6 @@ impl<T: Widget> KeyboardInputWrapper<T> {
         Self {
             child,
             want_listen,
-            glb_ctx: None,
             handler: Rc::new(handler),
         }
     }
@@ -121,23 +120,28 @@ impl<T: Widget> KeyboardInputWrapper<T> {
 impl<T: Widget> Widget for KeyboardInputWrapper<T> {
     fn apply_layout(&mut self, layout: SelectedLayout) {
         self.child.apply_layout(layout);
-
-        if self.want_listen {
-            let x = self.handler.clone();
-            self.glb_ctx
-                .as_ref()
-                .unwrap()
-                .register_text_receiver(move |a| {
-                    (*x)(a);
-                });
-        }
     }
 
-    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
+        if self.want_listen {
+            let x = self.handler.clone();
+            glb_ctx.register_text_receiver(move |a| {
+                (*x)(a);
+            });
+        }
         self.child.build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         self.child.layout(avl_sp, glb_ctx)
     }
 }
@@ -152,12 +156,17 @@ struct TextFieldContent {
 impl Widget for TextFieldContent {
     fn apply_layout(&mut self, _layout: SelectedLayout) {}
 
-    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, _glb_ctx: &Rc<GlobalBuildingContext>) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        _glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         let mut prg = self.prg.take().unwrap();
 
         if let Some(cursor_pos) = &self.cursor_pos {
             let mut offset = None;
-            if !self.content.is_empty() {
+            if !self.content.is_empty() && *cursor_pos != 0 {
                 offset = prg.get_glyph_info_at_utf16_offset(cursor_pos - 1);
             }
             let (cpx, cpy) = offset
@@ -180,16 +189,17 @@ impl Widget for TextFieldContent {
         )));
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         let width = avl_sp.width.unwrap_or(500.);
 
         use skia_safe::textlayout::*;
         let mut f = FontCollection::new();
         f.enable_font_fallback();
-        f.set_default_font_manager(
-            Some(glb_ctx.fonts().mgr().clone()),
-            "system-ui",
-        );
+        f.set_default_font_manager(Some(glb_ctx.fonts().mgr().clone()), "system-ui");
         let mut style = ParagraphStyle::new();
         style.set_height(100.);
         let mut builder = ParagraphBuilder::new(&style, f);
@@ -248,7 +258,7 @@ impl TextFieldController {
     }
 }
 
-fn text_field_click(state: UIBuildArg<TextFieldState, Rc<TextFieldController>>, _: ClickEvent) {
+fn text_field_click(state: UIBuildArg<TextFieldState, Rc<TextFieldController>>, ev: ClickEvent) {
     if state.config().inner.borrow().cur_down {
         return;
     }
@@ -276,6 +286,24 @@ fn text_field_event(
             state.config().inner.borrow_mut().insert_at += x.len();
             state.request_rebuild();
             edited = true;
+        }
+        TextReceiverEvent::Nav(left) => {
+            let pos = state.config().inner.borrow().insert_at;
+            let npos = if left {
+                if pos != 0 {
+                    pos - 1
+                } else {
+                    return;
+                }
+            } else {
+                if pos < state.config().inner.borrow().value.len() {
+                    pos + 1
+                } else {
+                    return;
+                }
+            };
+            state.config().inner.borrow_mut().insert_at = npos;
+            state.request_rebuild();
         }
         TextReceiverEvent::LostFocus => {
             state.config().inner.borrow_mut().cur_down = false;
@@ -342,6 +370,7 @@ fn build_text_field_content(
                 s.state_mut().hovered = false;
                 s.request_rebuild();
             }),
+            on_mv_inside: None
         },
         state.config().inner.borrow().cur_down,
     )

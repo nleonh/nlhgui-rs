@@ -7,7 +7,9 @@
 */
 
 use std::{
-    cell::{RefCell}, rc::Rc, sync::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{
         Arc,
         atomic::{self, AtomicBool},
     },
@@ -18,7 +20,10 @@ use skia_safe::Color4f;
 use winit::keyboard::NamedKey;
 
 use crate::{
-    events::{GenericKeyEvent, GenericMouseButton}, primitives::{Drawable, Point}, widgets::fonts::FontsModule, wnd::EventLoopAwaker,
+    events::{GenericKeyEvent, GenericMouseButton},
+    primitives::{Drawable, Point},
+    widgets::fonts::FontsModule,
+    wnd::EventLoopAwaker,
 };
 
 #[derive(Clone, Debug)]
@@ -35,6 +40,8 @@ pub enum CursorEvent<'a> {
     Down(&'a GenericMouseButton),
     /// (inside the rect/area)
     Up(&'a GenericMouseButton),
+    /// Cursor moved inside
+    MoveInside(f32, f32),
 }
 
 pub(crate) struct CursorSensitiveArea {
@@ -60,6 +67,8 @@ pub enum TextReceiverEvent {
     Text(String),
     /// backspace or del key
     Delete,
+    /// `true`: left, `false`: right
+    Nav(bool),
 }
 
 pub(crate) enum ConcurrencySolution {
@@ -92,7 +101,7 @@ impl GlobalBuildingContextData {
         for area in &mut self.cursor_areas {
             if area.is_inside(self.cursor_pos.0, self.cursor_pos.1) {
                 if area.currently_inside {
-                    // todo moved inside
+                    (*area.handler)(CursorEvent::MoveInside(self.cursor_pos.0, self.cursor_pos.1))
                 } else {
                     area.currently_inside = true;
                     (*area.handler)(CursorEvent::Entered);
@@ -186,10 +195,10 @@ impl GlobalBuildingContext {
     pub(crate) fn create_global_rebuild_trigger(&self) -> GlobalRebuildTrigger {
         GlobalRebuildTrigger {
             rebuild_flag: self.need_rebuild.clone(),
-            el_awaker: self.el_awaker.clone()
+            el_awaker: self.el_awaker.clone(),
         }
     }
-    
+
     pub(crate) fn set_awaker(&mut self, awaker: Arc<dyn Send + Sync + EventLoopAwaker>) {
         self.el_awaker = awaker;
     }
@@ -233,10 +242,16 @@ impl GlobalBuildingContext {
     }
 
     pub fn handle_key_event(&self, ev: GenericKeyEvent) {
-        if !(ev.alt || ev.ctrl) && (ev.key == NamedKey::Backspace || ev.key == NamedKey::Delete) {
+        if !(ev.alt || ev.ctrl) {
             let d = self.data.borrow();
             if let Some(recv) = d.text_receiver.as_ref() {
-                (**recv)(TextReceiverEvent::Delete);
+                if ev.key == NamedKey::Backspace || ev.key == NamedKey::Delete {
+                    (**recv)(TextReceiverEvent::Delete);
+                } else if ev.key == NamedKey::ArrowLeft {
+                    (**recv)(TextReceiverEvent::Nav(true));
+                } else if ev.key == NamedKey::ArrowRight {
+                    (**recv)(TextReceiverEvent::Nav(false));
+                }
             }
         }
     }
@@ -378,11 +393,20 @@ impl AvailableSpace {
 }
 
 pub trait Widget {
-    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>);
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    );
 
     fn apply_layout(&mut self, layout: SelectedLayout);
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult;
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult;
 }
 
 /// less boilerplate, auto-implements Widget by just calling the child's methods
@@ -399,11 +423,20 @@ where
         self.child_mut().apply_layout(layout)
     }
 
-    fn build(&mut self, target: &mut Vec<Box<dyn Drawable>>, ctx: BuildingContext, glb_ctx: &Rc<GlobalBuildingContext>) {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
         self.child_mut().build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         self.child_mut().layout(avl_sp, glb_ctx)
     }
 }

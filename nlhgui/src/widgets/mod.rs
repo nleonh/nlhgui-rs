@@ -80,7 +80,11 @@ impl Widget for Rect {
         target.push(Box::new(rect));
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, _glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        _glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         LayoutingResult::fix(self.width, self.height).checked(avl_sp)
     }
 
@@ -159,7 +163,11 @@ impl Widget for Container {
         }
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         self.child_layout_data.clear();
         let mut minw = 0.;
         let mut minh = 0.;
@@ -247,27 +255,47 @@ impl WrapperWidget for Box<dyn Widget> {
     }
 }
 
+impl<T: Widget> Widget for Rc<RefCell<T>> {
+    fn build(
+        &mut self,
+        target: &mut Vec<Box<dyn Drawable>>,
+        ctx: BuildingContext,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) {
+        self.borrow_mut().build(target, ctx, glb_ctx)
+    }
+
+    fn apply_layout(&mut self, layout: SelectedLayout) {
+        self.borrow_mut().apply_layout(layout)
+    }
+
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
+        self.borrow_mut().layout(avl_sp, glb_ctx)
+    }
+}
+
 /// Usually relative to box borders
 #[derive(Debug, Copy, Clone)]
 pub struct CursorPosition(pub f32, pub f32);
 
 /// Used by [`CursorReactiveBox`]
 pub struct ClickEvent {
-    pub pos: CursorPosition
+    pub pos: CursorPosition,
 }
 
 /// Used by [`CursorReactiveBox`]
-pub struct HoverEvent {
-}
+pub struct HoverEvent {}
 
 /// Used by [`CursorReactiveBox`]
-pub struct HoverEndEvent {
+pub struct HoverEndEvent {}
 
-}
 /// Used by [`CursorReactiveBox`]
-
 pub struct MoveInsideEvent {
-    pub pos: CursorPosition
+    pub pos: CursorPosition,
 }
 
 /// Callback functions for [`CursorReactiveBox`]
@@ -275,7 +303,7 @@ pub struct CursorReactiveBoxHandlers {
     pub on_hover: Box<dyn Fn(HoverEvent)>,
     pub on_hover_end: Box<dyn Fn(HoverEndEvent)>,
     pub on_clicked: Box<dyn Fn(ClickEvent)>,
-    pub on_mv_inside: Option<Box<dyn Fn(MoveInsideEvent)>>
+    pub on_mv_inside: Option<Box<dyn Fn(MoveInsideEvent)>>,
 }
 
 struct CursorReactiveInnerState {
@@ -302,7 +330,7 @@ impl<T: Widget> CursorReactiveBox<T> {
                 handlers,
                 act_inside: Cell::new(cur_hovered),
                 down_inside: Cell::new(false),
-                pos: Cell::new(CursorPosition(0., 0.))
+                pos: Cell::new(CursorPosition(0., 0.)),
             }),
             layout: SelectedLayout {
                 width: 0.,
@@ -335,13 +363,13 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                     // Important: If a rebuild is triggered by a handler, this CursorEvent
                     // might be emitted multiple times. maybe TODO
                     if !statec.act_inside.get() {
-                        (*statec.handlers.on_hover)(HoverEvent {  })
+                        (*statec.handlers.on_hover)(HoverEvent {})
                     }
                 }
                 CursorEvent::Left => {
                     statec.act_inside.set(false);
                     statec.down_inside.set(false);
-                    (*statec.handlers.on_hover_end)(HoverEndEvent {  })
+                    (*statec.handlers.on_hover_end)(HoverEndEvent {})
                 }
                 CursorEvent::Down(b) => {
                     if *b == GenericMouseButton::Left {
@@ -354,13 +382,16 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
                         && statec.act_inside.get()
                         && statec.down_inside.get()
                     {
-                        (*statec.handlers.on_clicked)(ClickEvent {pos: statec.pos.get()});
+                        (*statec.handlers.on_clicked)(ClickEvent {
+                            pos: statec.pos.get(),
+                        });
                     }
                 }
                 CursorEvent::MoveInside(x, y) => {
+                    // needed also for click event arg
+                    let pos = CursorPosition(x, y);
+                    statec.pos.set(pos);
                     if let Some(h) = &statec.handlers.on_mv_inside {
-                        let pos = CursorPosition(x, y);
-                        statec.pos.set(pos);
                         (**h)(MoveInsideEvent { pos });
                     }
                 }
@@ -369,7 +400,11 @@ impl<T: Widget> Widget for CursorReactiveBox<T> {
         self.child.build(target, ctx, glb_ctx)
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         self.child.layout(avl_sp, glb_ctx)
     }
 }
@@ -607,7 +642,11 @@ impl<C: Widget> Widget for BoxWidget<C> {
         );
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         let border = self.border.as_ref().map(|x| x.0).unwrap_or(0.);
         let own_y = self.padding.bottom + self.padding.top + border * 2.;
         let own_x = self.padding.left + self.padding.right + border * 2.;
@@ -671,12 +710,13 @@ impl Widget for TextLine {
         target.push(Box::new(TextBlobDrawable::new(blob.clone(), pos)));
     }
 
-    fn layout(&mut self, avl_sp: AvailableSpace, glb_ctx: &Rc<GlobalBuildingContext>) -> LayoutingResult {
+    fn layout(
+        &mut self,
+        avl_sp: AvailableSpace,
+        glb_ctx: &Rc<GlobalBuildingContext>,
+    ) -> LayoutingResult {
         let typeface = glb_ctx.fonts().std_typeface();
-        let font = Font::from_typeface(
-            typeface,
-            Some(glb_ctx.builtin_style.std_font_size),
-        );
+        let font = Font::from_typeface(typeface, Some(glb_ctx.builtin_style.std_font_size));
         let tb = TextBlob::from_str(&self.data, &font).unwrap();
 
         let bounds = tb.bounds();
@@ -697,12 +737,15 @@ impl Widget for TextLine {
 /// Multiple lines of immutable text, no inner styling
 pub struct MultilineText {
     value: String,
-    prg: Option<textlayout::Paragraph>,
+    prg: Option<Rc<RefCell<textlayout::Paragraph>>>,
 }
 
 impl MultilineText {
     pub fn new<T: Into<String>>(text: T) -> Self {
-        Self { value: text.into(), prg: None }
+        Self {
+            value: text.into(),
+            prg: None,
+        }
     }
 }
 
@@ -716,7 +759,7 @@ impl Widget for MultilineText {
         _glb_ctx: &Rc<GlobalBuildingContext>,
     ) {
         target.push(Box::new(ParagraphDrawable(
-            self.prg.take().unwrap(),
+            self.prg.as_ref().unwrap().clone(),
             Point(ctx.x_begin, ctx.y_begin),
         )));
     }
@@ -747,7 +790,7 @@ impl Widget for MultilineText {
         prg.layout(width);
         let height = prg.height();
 
-        self.prg = Some(prg);
+        self.prg = Some(Rc::new(RefCell::new(prg)));
 
         LayoutingResult::fix(width, height).checked(avl_sp)
     }

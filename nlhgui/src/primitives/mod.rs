@@ -8,6 +8,8 @@
 
 mod shapes;
 
+use std::{cell::RefCell, rc::Rc};
+
 pub use shapes::*;
 
 use skia_safe::{
@@ -50,11 +52,11 @@ impl Drawable for TextBlobDrawable {
     }
 }
 
-pub struct ParagraphDrawable(pub textlayout::Paragraph, pub Point);
+pub struct ParagraphDrawable(pub Rc<RefCell<textlayout::Paragraph>>, pub Point);
 
 impl Drawable for ParagraphDrawable {
     fn draw(&self, canvas: &Canvas) {
-        self.0.paint(canvas, &self.1);
+        self.0.borrow_mut().paint(canvas, &self.1);
     }
 }
 

@@ -6,8 +6,7 @@
  file, You can obtain one at https://mozilla.org/MPL/2.0/.
 */
 
-use std::cell::Cell;
-
+use log::warn;
 use skia_safe::{
     Color,
     colors::{BLACK, TRANSPARENT},
@@ -55,7 +54,7 @@ fn build_txt_button(p: UIBuildArg<TextButtonState>) -> CursorReactiveBox<TextBut
             on_clicked: p.handler(on_btn_click),
             on_hover: p.handler(on_btn_hover),
             on_hover_end: p.handler(on_btn_hover_stop),
-            on_mv_inside: None
+            on_mv_inside: None,
         },
         hovered,
     );
@@ -148,9 +147,22 @@ impl<T: Widget> Widget for KeyboardInputWrapper<T> {
 
 struct TextFieldContent {
     content: String,
-    prg: Cell<Option<textlayout::Paragraph>>,
+    // todo
+    prg: Option<Rc<RefCell<textlayout::Paragraph>>>,
     cursor_pos: Option<usize>,
     font_size: f32,
+}
+
+impl TextFieldContent {
+    pub fn get_cusor_index(&self, x: f32, y: f32) -> usize {
+        let x = self
+            .prg
+            .as_ref()
+            .unwrap()
+            .borrow_mut()
+            .get_glyph_position_at_coordinate(skia_safe::Point::new(x, y));
+        x.position as usize
+    }
 }
 
 impl Widget for TextFieldContent {
@@ -162,12 +174,14 @@ impl Widget for TextFieldContent {
         ctx: BuildingContext,
         _glb_ctx: &Rc<GlobalBuildingContext>,
     ) {
-        let mut prg = self.prg.take().unwrap();
+        let prg = self.prg.clone().unwrap();
 
         if let Some(cursor_pos) = &self.cursor_pos {
             let mut offset = None;
             if !self.content.is_empty() && *cursor_pos != 0 {
-                offset = prg.get_glyph_info_at_utf16_offset(cursor_pos - 1);
+                offset = prg
+                    .borrow_mut()
+                    .get_glyph_info_at_utf16_offset(cursor_pos - 1);
             }
             let (cpx, cpy) = offset
                 .map(|cp| {
@@ -218,7 +232,7 @@ impl Widget for TextFieldContent {
             height = 30.;
         }
 
-        self.prg.set(Some(prg));
+        self.prg = Some(Rc::new(RefCell::new(prg)));
 
         LayoutingResult::fix(width, height)
     }
@@ -259,9 +273,13 @@ impl TextFieldController {
 }
 
 fn text_field_click(state: UIBuildArg<TextFieldState, Rc<TextFieldController>>, ev: ClickEvent) {
-    if state.config().inner.borrow().cur_down {
-        return;
+    if let Some(c) = state.state().inner_child.as_ref() {
+        let cursor_index = c.borrow().get_cusor_index(ev.pos.0, ev.pos.1);
+        state.config().inner.borrow_mut().insert_at = cursor_index;
+    } else {
+        warn!("unable to compute cursor position");
     }
+
     state.config().inner.borrow_mut().cur_down = true;
 
     state.request_rebuild();
@@ -330,30 +348,34 @@ fn text_field_event(
 
 fn build_text_field_content(
     state: UIBuildArg<TextFieldState, Rc<TextFieldController>>,
-) -> CursorReactiveBox<KeyboardInputWrapper<BoxWidget<TextFieldContent>>> {
+) -> CursorReactiveBox<KeyboardInputWrapper<BoxWidget<Rc<RefCell<TextFieldContent>>>>> {
     let ctx = state.glb_ctx();
     let styles = &ctx.builtin_style;
     let cfg = state.config().inner.borrow();
+
+    let content = Rc::new(RefCell::new(TextFieldContent {
+        content: cfg.value.clone(),
+        prg: None,
+        cursor_pos: if cfg.cur_down {
+            Some(cfg.insert_at)
+        } else {
+            None
+        },
+        font_size: state.glb_ctx().builtin_style.std_font_size,
+    }));
+    state.state_mut().inner_child = Some(content.clone());
+
     CursorReactiveBox::new(
         KeyboardInputWrapper::new(
-            BoxWidget::new(TextFieldContent {
-                content: cfg.value.clone(),
-                prg: Cell::new(None),
-                cursor_pos: if cfg.cur_down {
-                    Some(cfg.insert_at)
+            BoxWidget::new(content)
+                .with_bg_color(if cfg.cur_down {
+                    styles.dyn_act_col
+                } else if state.state().hovered {
+                    styles.dyn_hover_col
                 } else {
-                    None
-                },
-                font_size: state.glb_ctx().builtin_style.std_font_size,
-            })
-            .with_bg_color(if cfg.cur_down {
-                styles.dyn_act_col
-            } else if state.state().hovered {
-                styles.dyn_hover_col
-            } else {
-                TRANSPARENT
-            })
-            .with_border(BoxBorder(1., BLACK)),
+                    TRANSPARENT
+                })
+                .with_border(BoxBorder(1., BLACK)),
             cfg.cur_down,
             state.handler(text_field_event),
         ),
@@ -370,7 +392,7 @@ fn build_text_field_content(
                 s.state_mut().hovered = false;
                 s.request_rebuild();
             }),
-            on_mv_inside: None
+            on_mv_inside: None,
         },
         state.config().inner.borrow().cur_down,
     )
@@ -379,14 +401,14 @@ fn build_text_field_content(
 struct TextFieldState {
     hovered: bool,
     handle_edit: Option<Box<dyn Fn(TextFieldEditEvent)>>,
+    inner_child: Option<Rc<RefCell<TextFieldContent>>>,
 }
 
+type TextFieldWidgetT =
+    CursorReactiveBox<KeyboardInputWrapper<BoxWidget<Rc<RefCell<TextFieldContent>>>>>;
+
 pub struct TextField {
-    child: ReactiveUI<
-        TextFieldState,
-        CursorReactiveBox<KeyboardInputWrapper<BoxWidget<TextFieldContent>>>,
-        Rc<TextFieldController>,
-    >,
+    child: ReactiveUI<TextFieldState, TextFieldWidgetT, Rc<TextFieldController>>,
 }
 
 impl TextField {
@@ -396,6 +418,7 @@ impl TextField {
                 TextFieldState {
                     hovered: false,
                     handle_edit: None,
+                    inner_child: None,
                 },
                 build_text_field_content,
                 ctrl,
